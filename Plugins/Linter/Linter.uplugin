@@ -1,0 +1,23 @@
+{
+	"FileVersion": 3,
+	"Version": 5,
+	"VersionName": "1.5",
+	"FriendlyName": "Linter",
+	"Description": "",
+	"Category": "Other",
+	"CreatedBy": "Michael Allar",
+	"CreatedByURL": "https://gamemak.in",
+	"DocsURL": "http://discord.gamemak.in",
+	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/5817c0a8a435471484f23e223ad5c9f5",
+	"SupportURL": "http://discord.gamemak.in",
+	"EngineVersion": "4.19.0",
+	"CanContainContent": false,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "Linter",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	]
+}
