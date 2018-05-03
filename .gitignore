@@ -74,3 +74,6 @@ Intermediate
 
 # Cache files for the editor to use
 DerivedDataCache
+
+# Do not include folder for assets we are testing and do not want to track
+DoNotTrack
