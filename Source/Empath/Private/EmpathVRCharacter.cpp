@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2018 Team Empath All Rights Reserved
 
 #include "EmpathVRCharacter.h"
 
