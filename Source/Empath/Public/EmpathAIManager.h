@@ -10,8 +10,8 @@ UCLASS()
 class EMPATH_API AEmpathAIManager : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	// Sets default values for this actor's properties
 	AEmpathAIManager();
 
@@ -19,10 +19,11 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	
-	
+	UPROPERTY(Category = "Empath|AI", EditAnywhere, BlueprintReadWrite)
+		TArray<class AEmpathAIController*> EmpathAIControllers;
+
 };

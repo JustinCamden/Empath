@@ -5,6 +5,7 @@
 #include "VRBPDatatypes.h"
 #include "AIController.h"
 #include "VRBaseCharacter.h"
+
 #include "VRAIController.generated.h"
 
 
