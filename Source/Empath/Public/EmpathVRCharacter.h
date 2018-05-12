@@ -19,10 +19,15 @@ public:
 	/** Returns the world location for the center mass of the character.
 	 If set to a component, gets that component's location. Otherwise, uses the VR location */
 	UFUNCTION(Category = "Empath|VRCharacter", BlueprintCallable, BlueprintPure)
-	FVector GetAimLocation();
-private:
+	FVector GetAimLocation() const;
+
+	UFUNCTION(Category = "Empath|VRCharacter", BlueprintCallable, BlueprintPure)
+	bool IsDead() const { return bDead; }
+protected:
 
 	/** Override for center mass of the character, used for aiming at the character and misc functions */
 	UPROPERTY(Category = "Empath|VRCharacter", EditAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	USceneComponent* AimLocationComponent;
+
+	bool bDead;
 };

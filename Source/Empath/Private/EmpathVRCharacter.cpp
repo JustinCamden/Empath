@@ -5,10 +5,10 @@
 AEmpathVRCharacter::AEmpathVRCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-
+	bDead = false;
 }
 
-FVector AEmpathVRCharacter::GetAimLocation()
+FVector AEmpathVRCharacter::GetAimLocation() const
 {
 	if (AimLocationComponent)
 	{
