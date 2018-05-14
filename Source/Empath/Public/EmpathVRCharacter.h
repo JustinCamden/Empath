@@ -23,8 +23,16 @@ public:
 
 	UFUNCTION(Category = "Empath|VRCharacter", BlueprintCallable, BlueprintPure)
 	bool IsDead() const { return bDead; }
-protected:
+	
+	/** Wrapper for GetDistanceTo function that takes into account that this is a VR character */
+	UFUNCTION(Category = "Empath|Utility", BlueprintCallable, BlueprintPure)
+	float GetDistanceToVR(AActor* OtherActor) const;
 
+	/** Returns whether the current character is in the process of teleporting. */
+	UFUNCTION(Category = "Empath|VRCharacter", BlueprintNativeEvent, BlueprintPure)
+	bool IsTeleporting() const;
+
+protected:
 	/** Override for center mass of the character, used for aiming at the character and misc functions */
 	UPROPERTY(Category = "Empath|VRCharacter", EditAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	USceneComponent* AimLocationComponent;

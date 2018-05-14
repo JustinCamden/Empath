@@ -8,6 +8,7 @@
 #include "EmpathAIManager.generated.h"
 
 class AEmpathAIController;
+class AEmpathVRCharacter;
 
 
 UCLASS(Transient, BlueprintType)
@@ -22,16 +23,12 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	void OnPlayerTeleported(FTransform const& FromTransform);
+	void OnPlayerDied(AEmpathVRCharacter* PlayerWhoDied);
+	void OnLostPlayerTimerExpired();
+
 	// Returns the non-player attack targets in the scene
-	TArray<FSecondaryAttackTarget> const& GetSecondaryAttackTargets() const { return SecondaryAttackTargets; };
-
-	/**
-	* @param TargetPreference	Determines how likely AI is to target this actor. Player is 0.f. Values >0 will emphasize targeting this actor, <0 will de-emphasize.
-	*							Preference is one of several factors in target choice.
-	* @param TargetingRatio	What (approx) percentage of AI should attack this target.
-	* @param TargetRadius		Radius of the target, used to adjust various attack distances and such. Player is assumed to be radius 0.
-	*/
-
+	TArray<FSecondaryAttackTarget> const& GetSecondaryAttackTargets() const { return SecondaryAttackTargets; }
 
 	/** Adds a secondary attack target to the list. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
@@ -51,12 +48,16 @@ public:
 	bool IsTargetLocationKnown(AActor const* Target) const;
 
 	/** Sets the known location of the target. */
-	void SetKnownTargetLocation(AActor const* Target);
+	void SetIsTargetLocationKnown(AActor const* Target);
 
 	/** Returns whether the location of the target may be lost. */
 	bool IsPlayerPotentiallyLost() const;
 
 protected:
+	/** How long the AI has to find the player after teleporting before declaring him "lost", in seconds */
+	float LostPlayerTimeThreshold;
+	float StartSearchingTimeThreshold;
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
@@ -66,11 +67,10 @@ protected:
 
 	// Variables governing player awareness
 	bool bPlayerHasEverBeenSeen;
-	bool bPlayerLocationIsKnown;
+	bool bIsPlayerLocationKnown;
 	EPlayerAwarenessState PlayerAwarenessState;
 	FVector LastKnownPlayerLocation;
 	FTimerHandle LostPlayerTimerHandle;
-
 private:
 	/** Removes any stale or dead secondary targets from the list. */
 	void CleanUpSecondaryTargets();

@@ -7,6 +7,7 @@
 #include "EmpathUtility.generated.h"
 
 class AActor;
+class AEmpathAIManager;
 
 /**
  * 

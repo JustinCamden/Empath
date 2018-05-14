@@ -22,7 +22,15 @@ AEmpathAIManager::AEmpathAIManager()
 	// Initialize default settings
 	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
 	bPlayerHasEverBeenSeen = false;
-	bPlayerLocationIsKnown = false;
+	bIsPlayerLocationKnown = false;
+	LostPlayerTimeThreshold = 0.5f;
+	StartSearchingTimeThreshold = 3.0f;
+}
+
+void AEmpathAIManager::OnPlayerDied(AEmpathVRCharacter* PlayerWhoDied)
+{
+	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+	bIsPlayerLocationKnown = false;
 }
 
 // Called when the game starts or when spawned
@@ -111,13 +119,13 @@ float AEmpathAIManager::GetAttackTargetRadius(AActor* AttackTarget) const
 	return 0.0f;
 }
 
-void AEmpathAIManager::SetKnownTargetLocation(AActor const* Target)
+void AEmpathAIManager::SetIsTargetLocationKnown(AActor const* Target)
 {
 	// If the target is a player
 	if (Cast<AEmpathVRCharacter>(Target) != nullptr)
 	{
 		// Update variables
-		bPlayerLocationIsKnown = true;
+		bIsPlayerLocationKnown = true;
 		LastKnownPlayerLocation = Target->GetActorLocation();
 
 		// Stop the "lost player" state flow
@@ -133,7 +141,7 @@ void AEmpathAIManager::SetKnownTargetLocation(AActor const* Target)
 			{
 				if (AI->IsPassive() == false)
 				{
-					AI->OnTargetSeenForFirstTime();
+					AI->ReceiveTargetSeenForFirstTime();
 				}
 			}
 
@@ -151,7 +159,7 @@ bool AEmpathAIManager::IsTargetLocationKnown(AActor const* Target) const
 		// If this is the player, return whether the player's location is known.
 		if (Cast<AEmpathVRCharacter>(Target) != nullptr)
 		{
-			return bPlayerLocationIsKnown;
+			return bIsPlayerLocationKnown;
 		}
 
 		// Else, return true for secondary targets
@@ -171,4 +179,72 @@ bool AEmpathAIManager::IsTargetLocationKnown(AActor const* Target) const
 bool AEmpathAIManager::IsPlayerPotentiallyLost() const
 {
 	return PlayerAwarenessState == EPlayerAwarenessState::PotentiallyLost;
+}
+
+void AEmpathAIManager::OnPlayerTeleported(FTransform const& FromTransform)
+{
+	if (PlayerAwarenessState == EPlayerAwarenessState::KnownLocation)
+	{
+		PlayerAwarenessState = EPlayerAwarenessState::PotentiallyLost;
+
+		// If this timer expires and no AI has found the player, he is officially "lost"
+		GetWorldTimerManager().SetTimer(LostPlayerTimerHandle,
+			FTimerDelegate::CreateUObject(this, &AEmpathAIManager::OnLostPlayerTimerExpired),
+			LostPlayerTimeThreshold, false);
+	}
+}
+
+void AEmpathAIManager::OnLostPlayerTimerExpired()
+{
+	switch (PlayerAwarenessState)
+	{
+	case EPlayerAwarenessState::KnownLocation:
+		// Shouldn't happen, do nothing.
+		break;
+
+	case EPlayerAwarenessState::PotentiallyLost:
+		// Move on to lost state
+		PlayerAwarenessState = EPlayerAwarenessState::Lost;
+		GetWorldTimerManager().SetTimer(LostPlayerTimerHandle,
+			FTimerDelegate::CreateUObject(this, &AEmpathAIManager::OnLostPlayerTimerExpired),
+			StartSearchingTimeThreshold, false);
+
+		bIsPlayerLocationKnown = false;
+
+		// Signal all AI to respond to losing player
+		// #TODO flag the AI closest to players last known position
+		for (AEmpathAIController* AI : TActorRange<AEmpathAIController>(GetWorld()))
+		{
+			if (AI->IsAIRunning())
+			{
+				AI->OnLostPlayerTarget();
+			}
+		}
+
+		break;
+
+	case EPlayerAwarenessState::Lost:
+		// Start searching
+		PlayerAwarenessState = EPlayerAwarenessState::Searching;
+
+		// Start searching
+		// #TODO have flagged AI check player's last known position
+		for (AEmpathAIController* AI : TActorRange<AEmpathAIController>(GetWorld()))
+		{
+			if (AI->IsAIRunning())
+			{
+				AI->OnPlayerSearchStarted();
+			}
+		}
+		break;
+
+	case EPlayerAwarenessState::Searching:
+	{
+		// Shouldn't happen, do nothing
+		break;
+	}
+
+	break;
+
+	}
 }

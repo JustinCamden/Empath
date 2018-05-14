@@ -26,6 +26,8 @@ struct FEmpathBBKeys
 	static const FName GoalLocation;
 	static const FName BehaviorMode;
 	static const FName bIsPassive;
+	static const FName FleeTarget;
+	static const FName DefendTarget;
 };
 
 USTRUCT(BlueprintType)
@@ -44,7 +46,7 @@ public:
 	/**
 	* @param TargetPreference	Determines how likely AI is to target this actor. Player is 0.f. Values >0 will emphasize targeting this actor, <0 will de-emphasize.
 	*							Preference is one of several factors in target choice.
-	* @param TargetingRatio	What (approx) percentage of AI should attack this target.
+	* @param TargetingRatio		What (approx) percentage of AI should attack this target.
 	* @param TargetRadius		Radius of the target, used to adjust various attack distances and such. Player is assumed to be radius 0.
 	*/
 	UPROPERTY(Category = "Empath|AI", EditAnywhere, BlueprintReadWrite)
@@ -68,6 +70,6 @@ enum class EPlayerAwarenessState : uint8
 	KnownLocation,
 	PotentiallyLost,
 	Lost,
-	Scanning,
+	Searching,
 	PresenceNotKnown,
 };

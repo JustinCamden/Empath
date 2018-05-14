@@ -20,4 +20,15 @@ FVector AEmpathVRCharacter::GetAimLocation() const
 	}
 }
 
+float AEmpathVRCharacter::GetDistanceToVR(AActor* OtherActor) const
+{
+	return (GetVRLocation() - OtherActor->GetActorLocation()).Size();
+}
+
+bool AEmpathVRCharacter::IsTeleporting_Implementation() const
+{
+	// TODO: Hook this up to teleport state
+	return false;
+}
+
 

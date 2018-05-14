@@ -2,6 +2,7 @@
 
 #include "EmpathUtility.h"
 #include "EmpathVRCharacter.h"
+#include "EmpathGameModeBase.h"
 
 const FVector UEmpathUtility::GetAimLocationOnActor(AActor const* Actor)
 {

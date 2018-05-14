@@ -8,3 +8,5 @@ const FName FEmpathBBKeys::bAlert(TEXT("bCanSeeTarget"));
 const FName FEmpathBBKeys::GoalLocation(TEXT("AIGoalLocation"));
 const FName FEmpathBBKeys::BehaviorMode(TEXT("AIBehaviorMode"));
 const FName FEmpathBBKeys::bIsPassive(TEXT("bIsPassive"));
+const FName FEmpathBBKeys::FleeTarget(TEXT("FleeTarget"));
+const FName FEmpathBBKeys::DefendTarget(TEXT("DefendTarget"));

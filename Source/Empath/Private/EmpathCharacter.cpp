@@ -1,14 +1,15 @@
 // Copyright 2018 Team Empath All Rights Reserved
 
 #include "EmpathCharacter.h"
+#include "EmpathVRCharacter.h"
 
 
 // Sets default values
 AEmpathCharacter::AEmpathCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	MaxEffectiveDistance = 250.0f;
 }
 
 // Called when the game starts or when spawned
@@ -25,10 +26,19 @@ void AEmpathCharacter::Tick(float DeltaTime)
 
 }
 
-// Called to bind functionality to input
-void AEmpathCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+float AEmpathCharacter::GetDistanceToVR(const AActor* OtherActor) const
 {
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	// Check if the other actor is a VR character
+	const AEmpathVRCharacter* OtherVRChar = Cast<AEmpathVRCharacter>(OtherActor);
+	if (OtherVRChar)
+	{
+		return (GetActorLocation() - OtherVRChar->GetVRLocation()).Size();
+	}
 
+	// Otherwise, use default behavior
+	else 
+	{
+		return GetDistanceTo(OtherActor);
+	}
 }
 
