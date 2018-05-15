@@ -68,17 +68,17 @@ AEmpathAIController::AEmpathAIController(const FObjectInitializer& ObjectInitial
 void AEmpathAIController::BeginPlay()
 {
 	Super::BeginPlay();
-
+	
 	// Grab the AI Manager
-	AIManager = GetWorld()->GetAuthGameMode<AEmpathGameModeBase>()->GetAIManager();
-	if (!AIManager)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ERROR: AI Manager not found!"));
-	}
+	AEmpathAIManager* GrabbedAIManager = GetWorld()->GetAuthGameMode<AEmpathGameModeBase>()->GetAIManager();
+	RegisterAIManager(GrabbedAIManager);
+}
 
-	// Register us with the list of Empath AI cons
-	else
+void AEmpathAIController::RegisterAIManager(AEmpathAIManager* RegisteringAIManager)
+{
+	if (RegisteringAIManager)
 	{
+		AIManager = RegisteringAIManager;
 		AIManagerIndex = AIManager->EmpathAICons.Add(this);
 	}
 }

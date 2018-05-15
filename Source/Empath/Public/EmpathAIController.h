@@ -238,6 +238,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void RequestReposition() { bShouldReposition = true; };
 
+	/** Registers this AI controller with the AI Manager */
+	void RegisterAIManager(AEmpathAIManager* RegisteredAIManager);
+
+	/** Returns whether we have registered with the AI manager*/
+	bool IsRegisteredWithAIManager() {return (AIManager != nullptr);}
+
 protected:
 
 	// ---------------------------------------------------------

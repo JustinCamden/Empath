@@ -37,19 +37,36 @@ void AEmpathAIManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Grab an AI controllers that were not already registered with us. Shouldn't ever happen, but just in case.
+	for (AEmpathAIController* CurrAICon : TActorRange<AEmpathAIController>(GetWorld()))
+	{
+		if (!CurrAICon->IsRegisteredWithAIManager())
+		{
+			CurrAICon->RegisterAIManager(this);
+		}
+	}
+
 	// Bind delegates to the player
 	APlayerController* PlayerCon = GetWorld()->GetFirstPlayerController();
 	if (PlayerCon)
 	{
-		AEmpathVRCharacter* VRPlayer = Cast<AEmpathVRCharacter>(PlayerCon->GetPawn());
-		if (VRPlayer)
+		APawn* PlayerPawn = PlayerCon->GetPawn();
+		if (PlayerPawn)
 		{
-			VRPlayer->OnTeleport.AddDynamic(this, &AEmpathAIManager::OnPlayerTeleported);
-			VRPlayer->OnDeath.AddDynamic(this, &AEmpathAIManager::OnPlayerDied);
+			AEmpathVRCharacter* VRPlayer = Cast<AEmpathVRCharacter>(PlayerPawn);
+			if (VRPlayer)
+			{
+				VRPlayer->OnTeleport.AddDynamic(this, &AEmpathAIManager::OnPlayerTeleported);
+				VRPlayer->OnDeath.AddDynamic(this, &AEmpathAIManager::OnPlayerDied);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("ERROR: Player is not an Empath VR Character!"));
+			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ERROR: Player is not an Empath VR Character!"));
+			UE_LOG(LogTemp, Warning, TEXT("ERROR: Player not possessing pawn!"));
 		}
 	}
 	else
