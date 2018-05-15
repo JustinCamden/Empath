@@ -17,9 +17,12 @@
 DECLARE_CYCLE_STAT(TEXT("UpdateAttackTarget"), STAT_EMPATH_UpdateAttackTarget, STATGROUP_EMPATH_AICon);
 DECLARE_CYCLE_STAT(TEXT("UpdateVision"), STAT_EMPATH_UpdateVision, STATGROUP_EMPATH_AICon);
 
-// Cannot have in class initializer so consts initialize here
-static const float MIN_TARGET_SELECTION_SCORE = -9999999.0f;
-static const FName AIVisionTraceTag(TEXT("AIVisionTrace"));
+// Cannot statics in class initializer so initialize here
+const float AEmpathAIController::MinTargetSelectionScore = -9999999.0f;
+const FName AEmpathAIController::AIVisionTraceTag = FName(TEXT("AIVisionTrace"));
+const float AEmpathAIController::MinDefenseGuardRadius = 100.f;
+const float AEmpathAIController::MinDefensePursuitRadius = 150.f;
+const float AEmpathAIController::MinFleeTargetRadius = 100.f;
 
 AEmpathAIController::AEmpathAIController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -618,7 +621,7 @@ void AEmpathAIController::UpdateAttackTarget()
 	if (AIManager)
 	{
 		// Initialize the best score to very low to ensure that we calculate scores properly
-		float BestScore = MIN_TARGET_SELECTION_SCORE;
+		float BestScore = MinTargetSelectionScore;
 
 		if (bCanTargetSecondaryTargets)
 		{
@@ -898,7 +901,7 @@ float AEmpathAIController::GetTargetSelectionScore(AActor* CandidateTarget,
 		return CurrentTargetPrefScore + CandidateTargetPrefScore + AngleScore + DistScore + TargetingRatioBonusScore + CandidateIsLostPenalty;
 	}
 
-	return MIN_TARGET_SELECTION_SCORE;
+	return MinTargetSelectionScore;
 }
 
 void AEmpathAIController::UpdateKnownTargetLocation(AActor const* AITarget)
@@ -1002,6 +1005,135 @@ void AEmpathAIController::PausePathFollowing()
 void AEmpathAIController::ResumePathFollowing()
 {
 	ResumeMove(GetCurrentMoveRequestID());
+}
+
+void AEmpathAIController::SetBehaviorModeSearchAndDestroy(AActor* InitialAttackTarget)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsEnum(FEmpathBBKeys::BehaviorMode, 
+			static_cast<uint8>(EEmpathBehaviorMode::SearchAndDestroy));
+		
+		// If initial attack target is not set, let the AI choose it itself
+		if (InitialAttackTarget != nullptr)
+		{
+			SetAttackTarget(InitialAttackTarget);
+		}
+	}
+}
+
+void AEmpathAIController::SetBehaviorModeDefend(AActor* DefendTarget, float GuardRadius, float PursuitRadius)
+{
+	if (Blackboard && DefendTarget)
+	{
+		Blackboard->SetValueAsEnum(FEmpathBBKeys::BehaviorMode, static_cast<uint8>(EEmpathBehaviorMode::Defend));
+		Blackboard->SetValueAsObject(FEmpathBBKeys::DefendTarget, DefendTarget);
+
+		// Keep the radii above a base minimum value to avoid silliness
+		float NewGuardRadius = FMath::Max(GuardRadius, MinDefenseGuardRadius);
+		float NewPursuitRadius = FMath::Max3(PursuitRadius, MinDefensePursuitRadius, NewGuardRadius);
+
+		// Pursuit radius must be greater than defend radius for points to be generated in queries using them.
+		// Thus, we ensure it is larger here
+		if (NewPursuitRadius <= NewGuardRadius + 50.0f)
+		{
+			NewPursuitRadius = NewGuardRadius + 50.0f;
+		}
+
+		// Update blackboard
+		Blackboard->SetValueAsFloat(FEmpathBBKeys::DefendGuardRadius, NewGuardRadius);
+		Blackboard->SetValueAsFloat(FEmpathBBKeys::DefendPursuitRadius, NewPursuitRadius);
+	}
+}
+
+void AEmpathAIController::SetBehaviorModeFlee(AActor* FleeTarget, float TargetRadius)
+{
+	if (Blackboard && FleeTarget)
+	{
+		// Clear our AI focus
+		ClearFocus(EAIFocusPriority::Default);
+		SetAttackTarget(nullptr);
+
+		// Update blackboard
+		Blackboard->SetValueAsEnum(FEmpathBBKeys::BehaviorMode, static_cast<uint8>(EEmpathBehaviorMode::Flee));
+		Blackboard->SetValueAsObject(FEmpathBBKeys::FleeTarget, FleeTarget);
+
+		TargetRadius = FMath::Max(TargetRadius, MinFleeTargetRadius);
+		Blackboard->SetValueAsFloat(FEmpathBBKeys::FleeTargetRadius, TargetRadius);
+	}
+}
+
+EEmpathBehaviorMode AEmpathAIController::GetBehaviorMode() const
+{
+	return Blackboard ? static_cast<EEmpathBehaviorMode>(Blackboard->GetValueAsEnum(FEmpathBBKeys::BehaviorMode)) : EEmpathBehaviorMode::SearchAndDestroy;
+}
+
+float AEmpathAIController::GetDefendGuardRadius() const
+{
+	return Blackboard ? Blackboard->GetValueAsFloat(FEmpathBBKeys::DefendGuardRadius) : MinDefenseGuardRadius;
+}
+
+float AEmpathAIController::GetDefendPursuitRadius() const
+{
+	return Blackboard ? Blackboard->GetValueAsFloat(FEmpathBBKeys::DefendPursuitRadius) : MinDefensePursuitRadius;
+}
+
+float AEmpathAIController::GetFleeTargetRadius() const
+{
+	return Blackboard ? Blackboard->GetValueAsFloat(FEmpathBBKeys::FleeTargetRadius) : 0.f;
+}
+
+bool AEmpathAIController::WantsToEngageAttackTarget() const
+{
+	// Don't engage if the target is lost
+	if (IsTargetLost())
+	{
+		return false;
+	}
+
+	// We don't necessarily want to engage if we are in defend mode
+	EEmpathBehaviorMode const BehaviorMode = GetBehaviorMode();
+	if (BehaviorMode == EEmpathBehaviorMode::Defend)
+	{
+		// Get character pointers
+		AEmpathCharacter const* const EmpathChar = GetEmpathChar();
+		AActor const* const AttackTarget = GetAttackTarget();
+		AActor const* const DefendTarget = GetDefendTarget();
+		if (EmpathChar && AttackTarget && DefendTarget)
+		{
+			// If attack target is inside the pursuit radius, return true
+			float const PursuitRadius = GetDefendPursuitRadius();
+			float const DistFromAttackTargetToDefendTarget = AttackTarget->GetDistanceTo(DefendTarget);
+			if (DistFromAttackTargetToDefendTarget < PursuitRadius)
+			{
+				return true;
+			}
+			else
+			{
+				// Otherwise, check if our attacks can still reach it from inside the defense radius
+				float const ClosestPossibleDistToAttackTarget = DistFromAttackTargetToDefendTarget - PursuitRadius;
+				float const MaxAttackDist = GetMaxAttackRange();
+
+				// If so return true
+				if (ClosestPossibleDistToAttackTarget <= MaxAttackDist)
+				{
+					return true;
+				}
+			}
+		}
+
+		// Otherwise, return false
+		return false;
+	}
+
+	// We don't want to engage if we are in flee mode
+	else if (BehaviorMode == EEmpathBehaviorMode::Flee)
+	{
+		return false;
+	}
+
+	// Otherwise, we're in search and destroy, and should want to engage
+	return true;
 }
 
 void AEmpathAIController::OnAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination)

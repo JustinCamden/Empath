@@ -26,8 +26,11 @@ struct FEmpathBBKeys
 	static const FName GoalLocation;
 	static const FName BehaviorMode;
 	static const FName bIsPassive;
-	static const FName FleeTarget;
 	static const FName DefendTarget;
+	static const FName DefendGuardRadius;
+	static const FName DefendPursuitRadius;
+	static const FName FleeTarget;
+	static const FName FleeTargetRadius;
 };
 
 USTRUCT(BlueprintType)
@@ -72,4 +75,12 @@ enum class EPlayerAwarenessState : uint8
 	Lost,
 	Searching,
 	PresenceNotKnown,
+};
+
+UENUM(BlueprintType)
+enum class EEmpathBehaviorMode : uint8
+{
+	SearchAndDestroy,
+	Defend,
+	Flee
 };

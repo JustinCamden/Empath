@@ -24,9 +24,28 @@ class EMPATH_API AEmpathAIController : public AVRAIController, public IEmpathTea
 	GENERATED_BODY()
 public:
 
+	// ---------------------------------------------------------
+	//	Static conts
+	static const float MinTargetSelectionScore;
+	static const FName AIVisionTraceTag;
+	static const float MinDefenseGuardRadius;
+	static const float MinDefensePursuitRadius;
+	static const float MinFleeTargetRadius;
+
+	// ---------------------------------------------------------
+	//	Important Misc
+
+	/** Constructor like behavior. */
 	AEmpathAIController(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+	/** Override for BeginPlayer to register delegates on the VR Character. */
 	virtual void BeginPlay() override;
+
+	/** Registers this AI controller with the AI Manager. */
+	void RegisterAIManager(AEmpathAIManager* RegisteredAIManager);
+
+	/** Returns whether we have registered with the AI Manager. */
+	bool IsRegisteredWithAIManager() { return (AIManager != nullptr); }
 
 	// ---------------------------------------------------------
 	//	TeamAgent Interface
@@ -238,11 +257,40 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void RequestReposition() { bShouldReposition = true; };
 
-	/** Registers this AI controller with the AI Manager */
-	void RegisterAIManager(AEmpathAIManager* RegisteredAIManager);
+	// ---------------------------------------------------------
+	//	Behavior modes
 
-	/** Returns whether we have registered with the AI manager*/
-	bool IsRegisteredWithAIManager() {return (AIManager != nullptr);}
+	/** Tells the AIs behavior to search and destroy. Should be default behavior for most AIs. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void SetBehaviorModeSearchAndDestroy(AActor* InitialAttackTarget);
+
+	/** Tells the AIs behavior to defend the defend target, and pursue targets if they get too close. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void SetBehaviorModeDefend(AActor* DefendTarget, float GuardRadius = 500.0f, float PursuitRadius = 750.0f);
+
+	/** Tells the AIs behavior to flee away from the flee target. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void SetBehaviorModeFlee(AActor* FleeTarget, float TargetRadius = 200.f);
+
+	/** Gets the current behavior mode. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	EEmpathBehaviorMode GetBehaviorMode() const;
+
+	/** Gets the current guard radius for defense mode. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	float GetDefendGuardRadius() const;
+
+	/** Gets the current pursuit radius for defense mode. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	float GetDefendPursuitRadius() const;
+
+	/** Gets the radius of the flee target. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	float GetFleeTargetRadius() const;
+
+	/** Whether we want to engage our attack target, depending on whether we can see it and what behavior mode we are in. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	bool WantsToEngageAttackTarget() const;
 
 protected:
 
