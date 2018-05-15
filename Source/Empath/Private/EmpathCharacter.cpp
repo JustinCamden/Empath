@@ -19,13 +19,15 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 void AEmpathCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+}
 
-	// Grab the Empath AI controller
-	EmpathAICon = Cast<AEmpathAIController>(GetController());
-	if (!EmpathAICon)
+AEmpathAIController* AEmpathCharacter::GetEmpathAICon()
+{
+	if (CachedEmpathAICon)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ERROR: Not possessed by an EmpathAIController!"));
+		return CachedEmpathAICon;
 	}
+	return Cast<AEmpathAIController>(GetController());
 }
 
 // Called every frame
@@ -52,6 +54,17 @@ float AEmpathCharacter::GetDistanceToVR(const AActor* OtherActor) const
 
 void AEmpathCharacter::Die()
 {
+	// Update variables
+	bDead = true;
+
+	// Signal AI controller
+	AEmpathAIController* EmpathAICon = GetEmpathAICon();
+	if (EmpathAICon)
+	{
+		EmpathAICon->OnCharacterDeath();
+	}
+
+	// Signal notifies
 	OnDeath.Broadcast();
 	ReceiveDie();
 }

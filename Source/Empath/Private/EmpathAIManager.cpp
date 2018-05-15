@@ -26,7 +26,7 @@ AEmpathAIManager::AEmpathAIManager()
 	StartSearchingTimeThreshold = 3.0f;
 }
 
-void AEmpathAIManager::OnPlayerDied(AEmpathVRCharacter* PlayerWhoDied)
+void AEmpathAIManager::OnPlayerDied()
 {
 	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
 	bIsPlayerLocationKnown = false;
@@ -37,6 +37,25 @@ void AEmpathAIManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Bind delegates to the player
+	APlayerController* PlayerCon = GetWorld()->GetFirstPlayerController();
+	if (PlayerCon)
+	{
+		AEmpathVRCharacter* VRPlayer = Cast<AEmpathVRCharacter>(PlayerCon->GetPawn());
+		if (VRPlayer)
+		{
+			VRPlayer->OnTeleport.AddDynamic(this, &AEmpathAIManager::OnPlayerTeleported);
+			VRPlayer->OnDeath.AddDynamic(this, &AEmpathAIManager::OnPlayerDied);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ERROR: Player is not an Empath VR Character!"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ERROR: Player not found!"));
+	}
 }
 
 // Called every frame
@@ -177,7 +196,7 @@ bool AEmpathAIManager::IsPlayerPotentiallyLost() const
 	return PlayerAwarenessState == EPlayerAwarenessState::PotentiallyLost;
 }
 
-void AEmpathAIManager::OnPlayerTeleported(FTransform const& FromTransform)
+void AEmpathAIManager::OnPlayerTeleported(AActor* Player, FVector Origin, FVector Destination)
 {
 	if (PlayerAwarenessState == EPlayerAwarenessState::KnownLocation)
 	{

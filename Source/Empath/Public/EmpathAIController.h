@@ -42,9 +42,9 @@ public:
 	UFUNCTION(Category = "Empath|AI", BlueprintCallable, BlueprintPure)
 	AEmpathAIManager* GetAIManager() const { return AIManager; }
 
-	/** Gets the controlled Empath Character. */
+	/** Returns the controlled Empath Character. */
 	UFUNCTION(Category = "Empath|AI", BlueprintCallable, BlueprintPure)
-	AEmpathCharacter* GetEmpathChar() const { return EmpathChar; }
+	AEmpathCharacter* GetEmpathChar() const;
 
 	/** Returns whether the current attack target's location has been lost i.e. no AI can see it. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
@@ -199,6 +199,19 @@ public:
 	/** Called when the current attack target dies */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnAttackTargetDied"))
 	void ReceiveAttackTargetDied();
+
+	/** Called when the attack target teleports. */
+	void OnAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
+
+	/** Called when the attack target teleports. */
+	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "OnAttackTargetTeleported"))
+	void ReceiveAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
+
+	void OnCharacterDeath();
+
+	/** Called when the controlled character dies. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterDeath"))
+	void ReceiveCharacterDeath();
 
 	// ---------------------------------------------------------
 	//	State flow / Commands
@@ -379,23 +392,10 @@ protected:
 	FVector CustomAimLocation;
 
 	// ---------------------------------------------------------
-	//	Events and receives
+	//	Misc functions and properties
 
 	/* Time we last saw the attack target teleport*/
 	float LastSawAttackTargetTeleportTime;
-
-	/** Called when the attack target teleports. */
-	void OnAttackTargetTeleported(AActor* Target, FTransform From, FTransform Destination);
-
-	/** Called when the attack target teleports. */
-	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "OnAttackTargetTeleported"))
-	void ReceiveAttackTargetTeleported(AActor* Target, FTransform From, FTransform Destination);
-
-	void OnCharacterDeath();
-
-	/** Called when the controlled character dies. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterDeath"))
-	void ReceiveCharacterDeath();
 
 	/** Cleans up this AI controller from the list maintained in the AI Manager */
 	void UnregisterAIManager();
@@ -407,6 +407,6 @@ private:
 	/** Our index inside the list of EmpathAICons stored in the AI manager. */
 	int32 AIManagerIndex;
 
-	/** The Empath Character we controll and grabbed when spawning. */
-	AEmpathCharacter* EmpathChar;
+	/** Stored reference to the Empath Character we control */
+	AEmpathCharacter* CachedEmpathChar;
 };

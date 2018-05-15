@@ -7,6 +7,9 @@
 #include "VRCharacter.h"
 #include "EmpathVRCharacter.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnVRTeleportDelegate, AActor*, TeleportingActor, FVector, Origin, FVector, Destination);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnVRCharacterDeathDelegate);
+
 /**
  * 
  */
@@ -38,6 +41,30 @@ public:
 	/** Returns whether the current character is in the process of teleporting. */
 	UFUNCTION(Category = "Empath|VRCharacter", BlueprintNativeEvent, BlueprintPure)
 	bool IsTeleporting() const;
+
+	/** Implementation of the teleport function */
+	UFUNCTION(BlueprintCallable, Category = "Empath|VRCharacter")
+	void TeleportToVR(FVector Destination, float DeltaYaw);
+
+	/** Called this when this character teleports. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|VRCharacter", meta = (DisplayName = "OnTeleport"))
+	void ReceiveTeleport(FVector Origin, FVector Destination, float DeltaYaw);
+
+	/** Called this when this character teleports. */
+	UPROPERTY(BlueprintAssignable, Category = "Empath|Health")
+	FOnVRTeleportDelegate OnTeleport;
+
+	/** Implementation of the teleport function */
+	UFUNCTION(BlueprintCallable, Category = "Empath|VRCharacter")
+	void Die();
+
+	/** Called this when this character teleports. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|VRCharacter", meta = (DisplayName = "OnDeath"))
+	void ReceiveDeath();
+
+	/** Called this when the player teleports. */
+	UPROPERTY(BlueprintAssignable, Category = "Empath|Health")
+	FOnVRCharacterDeathDelegate OnDeath;
 
 protected:
 	/** Override for center mass of the character, used for aiming at the character and misc functions */

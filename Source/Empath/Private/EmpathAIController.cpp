@@ -81,25 +81,20 @@ void AEmpathAIController::BeginPlay()
 	{
 		AIManagerIndex = AIManager->EmpathAICons.Add(this);
 	}
-
-
-	// Grab the controlled empath character
-	EmpathChar = Cast<AEmpathCharacter>(GetPawn());
-	if (!EmpathChar)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ERROR: Not possessing an Empath Character!"));
-	}
-
-	// Register delegates with the empath character
-	else
-	{
-		EmpathChar->OnDeath.AddDynamic(this, &AEmpathAIController::OnCharacterDeath);
-	}
 }
 
 EEmpathTeam AEmpathAIController::GetTeamNum_Implementation() const
 {
 	return Team;
+}
+
+AEmpathCharacter* AEmpathAIController::GetEmpathChar() const
+{
+	if (CachedEmpathChar)
+	{
+		return CachedEmpathChar;
+	}
+	return Cast<AEmpathCharacter>(GetPawn());
 }
 
 bool AEmpathAIController::IsTargetLost() const
@@ -142,7 +137,13 @@ void AEmpathAIController::SetAttackTarget(AActor* NewTarget)
 		AActor* const OldTarget = Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::AttackTarget));
 		if (NewTarget != OldTarget)
 		{
-			// TODO: Unregister delegates on old target
+			// Unregister delegates on old target
+			AEmpathVRCharacter* OldVRCharTarget = Cast<AEmpathVRCharacter>(OldTarget);
+			if (OldVRCharTarget)
+			{
+				OldVRCharTarget->OnTeleport.RemoveDynamic(this, &AEmpathAIController::OnAttackTargetTeleported);
+				OldVRCharTarget->OnDeath.RemoveDynamic(this, &AEmpathAIController::ReceiveAttackTargetDied);
+			}
 
 			// Do the set in the blackboard
 			Blackboard->SetValueAsObject(FEmpathBBKeys::AttackTarget, NewTarget);
@@ -154,7 +155,14 @@ void AEmpathAIController::SetAttackTarget(AActor* NewTarget)
 				CurrentAttackTargetRadius = AIManager->GetAttackTargetRadius(NewTarget);
 			}
 
-			// TODO: Register delegates on new target
+			// Register delegates on new target
+			AEmpathVRCharacter* NewVRCharTarget = Cast<AEmpathVRCharacter>(NewTarget);
+			if (NewVRCharTarget)
+			{
+				NewVRCharTarget->OnTeleport.AddDynamic(this, &AEmpathAIController::OnAttackTargetTeleported);
+				NewVRCharTarget->OnDeath.AddDynamic(this, &AEmpathAIController::ReceiveAttackTargetDied);
+			}
+
 
 			// If the new target is null, then we can no longer see the target
 			if (NewTarget == nullptr)
@@ -251,6 +259,7 @@ void AEmpathAIController::GetActorEyesViewPoint(FVector& out_Location, FRotator&
 	if (VisionBoneName != NAME_None)
 	{
 		// Check if we have a skeletal mesh
+		AEmpathCharacter* EmpathChar = GetEmpathChar();
 		USkeletalMeshComponent* const MySkelMesh = EmpathChar ? EmpathChar->GetMesh() : nullptr;
 		if (MySkelMesh)
 		{
@@ -324,6 +333,7 @@ bool AEmpathAIController::IsPassive() const
 
 float AEmpathAIController::GetMaxAttackRange() const
 {
+	AEmpathCharacter*EmpathChar = GetEmpathChar();
 	if (EmpathChar)
 	{
 		return EmpathChar->MaxEffectiveDistance + CurrentAttackTargetRadius;
@@ -333,6 +343,7 @@ float AEmpathAIController::GetMaxAttackRange() const
 
 float AEmpathAIController::GetMinAttackRange() const
 {
+	AEmpathCharacter*EmpathChar = GetEmpathChar();
 	if (EmpathChar)
 	{
 		return EmpathChar->MinEffectiveDistance + CurrentAttackTargetRadius;
@@ -342,6 +353,7 @@ float AEmpathAIController::GetMinAttackRange() const
 
 float AEmpathAIController::GetRangeToTarget() const
 {
+	AEmpathCharacter*EmpathChar = GetEmpathChar();
 	AActor const* const AttackTarget = GetAttackTarget();
 	if (EmpathChar && AttackTarget)
 	{
@@ -353,6 +365,7 @@ float AEmpathAIController::GetRangeToTarget() const
 
 bool AEmpathAIController::WantsToReposition(float DesiredMaxAttackRange, float DesiredMinAttackRange) const
 {
+	AEmpathCharacter*EmpathChar = GetEmpathChar();
 	AActor* AttackTarget = GetAttackTarget();
 
 	// If we were requested to move, return true
@@ -424,6 +437,7 @@ void AEmpathAIController::ClearCustomAimLocation()
 
 bool AEmpathAIController::IsDead() const
 {
+	AEmpathCharacter*EmpathChar = GetEmpathChar();
 	if (IsPendingKill() || !EmpathChar || EmpathChar->bDead)
 	{
 		return true;
@@ -508,6 +522,7 @@ FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& Mo
 		// Bind capsule bump detection while not moving.
 		if (bDetectStuckAgainstOtherAI)
 		{
+			AEmpathCharacter*EmpathChar = GetEmpathChar();
 			UCapsuleComponent* const MyPawnCapsule = EmpathChar ? EmpathChar->GetCapsuleComponent() : nullptr;
 			if (MyPawnCapsule)
 			{
@@ -521,6 +536,7 @@ FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& Mo
 void AEmpathAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
 {
 	// Unbind capsule bump detection while not moving
+	AEmpathCharacter*EmpathChar = GetEmpathChar();
 	UCapsuleComponent* const MyPawnCapsule = EmpathChar ? EmpathChar->GetCapsuleComponent() : nullptr;
 	if (MyPawnCapsule && MyPawnCapsule->OnComponentHit.IsAlreadyBound(this, &AEmpathAIController::OnCapsuleBumpDuringMove))
 	{
@@ -550,6 +566,7 @@ void AEmpathAIController::OnCapsuleBumpDuringMove(UPrimitiveComponent* HitComp,
 			// If we've experienced several hits in a short time, and velocity is 0, we're stuck
 			if (NumConsecutiveBumpsWhileMoving > MinCapsuleBumpsBeforeRepositioning)
 			{
+				AEmpathCharacter*EmpathChar = GetEmpathChar();
 				if (EmpathChar && EmpathChar->GetVelocity().IsNearlyZero())
 				{
 					// If we're stuck, stop trying to path
@@ -968,6 +985,7 @@ bool AEmpathAIController::RunBehaviorTree(UBehaviorTree* BTAsset)
 
 	if (bRunBTRequest)
 	{
+		AEmpathCharacter*EmpathChar = GetEmpathChar();
 		if (EmpathChar)
 		{
 			EmpathChar->ReceiveAIInitalized();
@@ -986,7 +1004,7 @@ void AEmpathAIController::ResumePathFollowing()
 	ResumeMove(GetCurrentMoveRequestID());
 }
 
-void AEmpathAIController::OnAttackTargetTeleported(AActor* Target, FTransform From, FTransform Destination)
+void AEmpathAIController::OnAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination)
 {
 	// If the target disappeared in front of me
 	if (CanSeeTarget())
@@ -1001,7 +1019,7 @@ void AEmpathAIController::OnAttackTargetTeleported(AActor* Target, FTransform Fr
 
 		LastSawAttackTargetTeleportTime = GetWorld()->GetTimeSeconds();
 
-		ReceiveAttackTargetTeleported(Target, From, Destination);
+		ReceiveAttackTargetTeleported(Target, Origin, Destination);
 	}
 }
 
@@ -1033,8 +1051,13 @@ int32 AEmpathAIController::GetNumAIsNearby(float Radius) const
 
 void AEmpathAIController::OnCharacterDeath()
 {
-	EmpathChar->OnDeath.RemoveDynamic(this, &AEmpathAIController::OnCharacterDeath);
+	// Remove ourselves from the AI manager
 	UnregisterAIManager();
+
+	// Clear our attack target
+	SetAttackTarget(nullptr);
+
+	// Fire notifies
 	ReceiveCharacterDeath();
 }
 

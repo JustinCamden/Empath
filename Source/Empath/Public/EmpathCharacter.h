@@ -31,6 +31,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Team")
 	EEmpathTeam GetTeamNum() const;
 
+	/** Returns the controlling Empath AI controller. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Health")
+	AEmpathAIController* GetEmpathAICon();
+
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Health")
 	bool bDead;
 
@@ -70,5 +74,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Team)
 	EEmpathTeam DefaultTeam;
 private:
-	AEmpathAIController* EmpathAICon;
+	/** Stored reference to our control Empath AI controller */
+	AEmpathAIController* CachedEmpathAICon;
 };

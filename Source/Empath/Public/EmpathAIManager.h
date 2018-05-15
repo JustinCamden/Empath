@@ -23,8 +23,8 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	void OnPlayerTeleported(FTransform const& FromTransform);
-	void OnPlayerDied(AEmpathVRCharacter* PlayerWhoDied);
+	void OnPlayerTeleported(AActor* Player, FVector Origin, FVector Destination);
+	void OnPlayerDied();
 	void OnLostPlayerTimerExpired();
 
 	// Returns the non-player attack targets in the scene
