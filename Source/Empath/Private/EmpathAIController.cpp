@@ -76,6 +76,12 @@ void AEmpathAIController::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("ERROR: AI Manager not found!"));
 	}
 
+	// Register us with the list of Empath AI cons
+	else
+	{
+		AIManagerIndex = AIManager->EmpathAICons.Add(this);
+	}
+
 
 	// Grab the controlled empath character
 	EmpathChar = Cast<AEmpathCharacter>(GetPawn());
@@ -83,11 +89,490 @@ void AEmpathAIController::BeginPlay()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("ERROR: Not possessing an Empath Character!"));
 	}
+
+	// Register delegates with the empath character
+	else
+	{
+		EmpathChar->OnDeath.AddDynamic(this, &AEmpathAIController::OnCharacterDeath);
+	}
 }
 
 EEmpathTeam AEmpathAIController::GetTeamNum_Implementation() const
 {
 	return Team;
+}
+
+bool AEmpathAIController::IsTargetLost() const
+{
+	AActor* const Target = GetAttackTarget();
+	if (Target && AIManager)
+	{
+		return !AIManager->IsTargetLocationKnown(Target);
+	}
+
+	return false;
+}
+
+bool AEmpathAIController::IsFacingTarget(FVector TargetLoc, float AngleToleranceDeg) const
+{
+	// Check if we have a pawn
+	APawn const* const MyPawn = GetPawn();
+	if (MyPawn)
+	{
+		// Check the angle from the pawn's forward vector to the target
+		FVector const ToTarget = (TargetLoc - MyPawn->GetActorLocation()).GetSafeNormal2D();
+		FVector ForwardDir = MyPawn->GetActorForwardVector();
+
+		// Flatten the Z so we only take the left and right angle into account
+		ForwardDir.Z = 0.f;
+		float const Dot = ForwardDir | ToTarget;
+		float const CosTolerance = FMath::Cos(FMath::DegreesToRadians(AngleToleranceDeg));
+		return (Dot > CosTolerance);
+	}
+
+	return false;
+}
+
+void AEmpathAIController::SetAttackTarget(AActor* NewTarget)
+{
+	// Ensure we have a blackboard
+	if (Blackboard)
+	{
+		// Ensure that this is a new target
+		AActor* const OldTarget = Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::AttackTarget));
+		if (NewTarget != OldTarget)
+		{
+			// TODO: Unregister delegates on old target
+
+			// Do the set in the blackboard
+			Blackboard->SetValueAsObject(FEmpathBBKeys::AttackTarget, NewTarget);
+			LastSawAttackTargetTeleportTime = 0.0f;
+
+			// Update the target radius
+			if (AIManager)
+			{
+				CurrentAttackTargetRadius = AIManager->GetAttackTargetRadius(NewTarget);
+			}
+
+			// TODO: Register delegates on new target
+
+			// If the new target is null, then we can no longer see the target
+			if (NewTarget == nullptr)
+			{
+				Blackboard->SetValueAsBool(FEmpathBBKeys::bCanSeeTarget, false);
+			}
+			ReceiveNewAttackTarget(OldTarget, NewTarget);
+		}
+	}
+}
+
+AActor* AEmpathAIController::GetAttackTarget() const
+{
+	if (Blackboard)
+	{
+		return Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::AttackTarget));
+	}
+
+	return nullptr;
+}
+
+void AEmpathAIController::SetDefendTarget(AActor* NewDefendTarget)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsObject(FEmpathBBKeys::DefendTarget, NewDefendTarget);
+	}
+
+	return;
+}
+
+AActor* AEmpathAIController::GetDefendTarget() const
+{
+	if (Blackboard)
+	{
+		return Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::DefendTarget));
+	}
+
+	return nullptr;
+}
+
+void AEmpathAIController::SetFleeTarget(AActor* NewFleeTarget)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsObject(FEmpathBBKeys::FleeTarget, NewFleeTarget);
+	}
+
+	return;
+}
+
+AActor* AEmpathAIController::GetFleeTarget() const
+{
+	if (Blackboard)
+	{
+		return Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::FleeTarget));
+	}
+
+	return nullptr;
+}
+
+void AEmpathAIController::SetCanSeeTarget(bool bNewCanSeeTarget)
+{
+	if (Blackboard)
+	{
+		// Update the blackboard
+		Blackboard->SetValueAsBool(FEmpathBBKeys::bCanSeeTarget, bNewCanSeeTarget);
+
+		// If we can see the target, update shared knowledge of the target's location
+		if (bNewCanSeeTarget)
+		{
+			// Update shared knowledge of target location
+			AActor* const Target = GetAttackTarget();
+			if (Target)
+			{
+				UpdateKnownTargetLocation(Target);
+			}
+		}
+	}
+}
+
+bool AEmpathAIController::CanSeeTarget() const
+{
+	if (Blackboard)
+	{
+		return Blackboard->GetValueAsBool(FEmpathBBKeys::bCanSeeTarget);
+	}
+
+	return false;
+}
+
+void AEmpathAIController::GetActorEyesViewPoint(FVector& out_Location, FRotator& out_Rotation) const
+{
+	if (VisionBoneName != NAME_None)
+	{
+		// Check if we have a skeletal mesh
+		USkeletalMeshComponent* const MySkelMesh = EmpathChar ? EmpathChar->GetMesh() : nullptr;
+		if (MySkelMesh)
+		{
+			// Check first for a socket matching the name
+			if (MySkelMesh->DoesSocketExist(VisionBoneName))
+			{
+				FTransform const SocketTransform = MySkelMesh->GetSocketTransform(VisionBoneName);
+				out_Location = SocketTransform.GetLocation();
+				out_Rotation = SocketTransform.Rotator();
+				return;
+			}
+
+			// If there is no socket, check for a bone
+			else
+			{
+				int32 const BoneIndex = MySkelMesh->GetBoneIndex(VisionBoneName);
+				if (BoneIndex != INDEX_NONE)
+				{
+					FTransform const BoneTransform = MySkelMesh->GetBoneTransform(BoneIndex);
+					out_Location = BoneTransform.GetLocation();
+					out_Rotation = BoneTransform.Rotator();
+					return;
+				}
+			}
+		}
+	}
+
+	// Fallback for if we don't have a skeletal mesh or if there are no sockets or bones
+	// matching the name
+	return Super::GetActorEyesViewPoint(out_Location, out_Rotation);
+}
+
+void AEmpathAIController::SetGoalLocation(FVector GoalLocation)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsVector(FEmpathBBKeys::GoalLocation, GoalLocation);
+	}
+}
+
+FVector AEmpathAIController::GetGoalLocation() const
+{
+	if (Blackboard)
+	{
+		return Blackboard->GetValueAsVector(FEmpathBBKeys::GoalLocation);
+	}
+
+	// Default to current location.
+	return GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
+}
+
+void AEmpathAIController::SetIsPassive(bool bNewPassive)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsBool(FEmpathBBKeys::bIsPassive, bNewPassive);
+	}
+
+	return;
+}
+
+bool AEmpathAIController::IsPassive() const
+{
+	if (Blackboard)
+	{
+		return Blackboard->GetValueAsBool(FEmpathBBKeys::bIsPassive);
+	}
+
+	return false;
+}
+
+float AEmpathAIController::GetMaxAttackRange() const
+{
+	if (EmpathChar)
+	{
+		return EmpathChar->MaxEffectiveDistance + CurrentAttackTargetRadius;
+	}
+	return 0.0f;
+}
+
+float AEmpathAIController::GetMinAttackRange() const
+{
+	if (EmpathChar)
+	{
+		return EmpathChar->MinEffectiveDistance + CurrentAttackTargetRadius;
+	}
+	return 0.0f;
+}
+
+float AEmpathAIController::GetRangeToTarget() const
+{
+	AActor const* const AttackTarget = GetAttackTarget();
+	if (EmpathChar && AttackTarget)
+	{
+		return EmpathChar->GetDistanceTo(AttackTarget) - CurrentAttackTargetRadius;
+	}
+
+	return 0.f;
+}
+
+bool AEmpathAIController::WantsToReposition(float DesiredMaxAttackRange, float DesiredMinAttackRange) const
+{
+	AActor* AttackTarget = GetAttackTarget();
+
+	// If we were requested to move, return true
+	if (bShouldReposition)
+	{
+		// We want to reset the request to move, since we'll probably attempt to move when this is called.
+		// Since bShouldReposition is a protected variable, and this function is public,
+		// we need to get around the protection level.
+		AEmpathAIController* const MutableThis = const_cast<AEmpathAIController*>(this);
+		MutableThis->bShouldReposition = false;
+
+		return true;
+	}
+
+	// If we are too close or far away from attack target, we want to move
+	else if (EmpathChar && AttackTarget)
+	{
+		float const RangeToTarget = EmpathChar->GetDistanceToVR(AttackTarget);
+		if (RangeToTarget > DesiredMaxAttackRange || RangeToTarget < DesiredMinAttackRange)
+		{
+			return true;
+		}
+	}
+
+	// Otherwise, we want to move if we cannot see the attack target
+	return !CanSeeTarget();
+}
+
+FVector AEmpathAIController::GetAimLocation() const
+{
+	// Check for manually set override
+	if (bUseCustomAimLocation)
+	{
+		return CustomAimLocation;
+	}
+
+	// Otherwise, aim for the attack target, so long as it is not teleporting
+	AActor* const AttackTarget = GetAttackTarget();
+	if (AttackTarget)
+	{
+		AEmpathVRCharacter* VRCharacterTarget = Cast<AEmpathVRCharacter>(AttackTarget);
+		if (!(VRCharacterTarget && VRCharacterTarget->IsTeleporting()))
+		{
+			return UEmpathUtility::GetAimLocationOnActor(AttackTarget);
+		}
+	}
+
+	// Otherwise, aim straight ahead
+	APawn* const MyPawn = GetPawn();
+	if (MyPawn)
+	{
+		return (MyPawn->GetActorLocation() + (MyPawn->GetActorForwardVector() * 10000.f));
+	}
+
+	return FVector::ZeroVector;
+}
+
+void AEmpathAIController::SetCustomAimLocation(FVector AimLocation)
+{
+	CustomAimLocation = AimLocation;
+	bUseCustomAimLocation = true;
+}
+
+void AEmpathAIController::ClearCustomAimLocation()
+{
+	CustomAimLocation = FVector::ZeroVector;
+	bUseCustomAimLocation = false;
+}
+
+bool AEmpathAIController::IsDead() const
+{
+	if (IsPendingKill() || !EmpathChar || EmpathChar->bDead)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool AEmpathAIController::IsAIRunning() const
+{
+	UBrainComponent* const Brain = GetBrainComponent();
+	if (Brain)
+	{
+		return Brain->IsRunning();
+	}
+
+	return false;
+}
+
+bool AEmpathAIController::IsTargetTeleporting() const
+{
+	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
+	if (VRCharTarget && VRCharTarget->IsTeleporting())
+	{
+		return true;
+	}
+	return false;
+}
+
+float AEmpathAIController::GetTimeSinceLastSawAttackTargetTeleport() const
+{
+	return GetWorld()->TimeSince(LastSawAttackTargetTeleportTime);
+}
+
+void AEmpathAIController::OnLostPlayerTarget()
+{
+	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
+	if (!IsPassive() && VRCharTarget)
+	{
+		ReceiveLostPlayerTarget();
+	}
+}
+
+void AEmpathAIController::OnSearchForPlayerStarted()
+{
+	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
+	if (!IsPassive() && VRCharTarget)
+	{
+		ReceiveSearchForPlayerStarted();
+	}
+}
+
+void AEmpathAIController::OnTargetSeenForFirstTime()
+{
+	if (!IsPassive())
+	{
+		ReceiveTargetSeenForFirstTime();
+	}
+}
+
+FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& MoveRequest,
+	FNavPathSharedPtr* OutPath)
+{
+	FPathFollowingRequestResult const Result = Super::MoveTo(MoveRequest, OutPath);
+
+	const FVector GoalLocation = MoveRequest.GetDestination();
+
+	// If success or already at the location, update the Blackboard
+	if (Result.Code == EPathFollowingRequestResult::RequestSuccessful ||
+		Result.Code == EPathFollowingRequestResult::AlreadyAtGoal)
+	{
+		if (Blackboard)
+		{
+			Blackboard->SetValueAsVector(FEmpathBBKeys::GoalLocation, GoalLocation);
+		}
+	}
+
+	// If success, fire our own notifies
+	if (Result.Code == EPathFollowingRequestResult::RequestSuccessful)
+	{
+		ReceiveMoveTo(GoalLocation);
+
+		// Bind capsule bump detection while not moving.
+		if (bDetectStuckAgainstOtherAI)
+		{
+			UCapsuleComponent* const MyPawnCapsule = EmpathChar ? EmpathChar->GetCapsuleComponent() : nullptr;
+			if (MyPawnCapsule)
+			{
+				MyPawnCapsule->OnComponentHit.AddDynamic(this, &AEmpathAIController::OnCapsuleBumpDuringMove);
+			}
+		}
+	}
+	return Result;
+}
+
+void AEmpathAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+	// Unbind capsule bump detection while not moving
+	UCapsuleComponent* const MyPawnCapsule = EmpathChar ? EmpathChar->GetCapsuleComponent() : nullptr;
+	if (MyPawnCapsule && MyPawnCapsule->OnComponentHit.IsAlreadyBound(this, &AEmpathAIController::OnCapsuleBumpDuringMove))
+	{
+		MyPawnCapsule->OnComponentHit.RemoveDynamic(this, &AEmpathAIController::OnCapsuleBumpDuringMove);
+	}
+
+	Super::OnMoveCompleted(RequestID, Result);
+}
+
+void AEmpathAIController::OnCapsuleBumpDuringMove(UPrimitiveComponent* HitComp,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	FVector NormalImpulse,
+	const FHitResult& Hit)
+{
+	// Check if the colliding actor is an Empath Character
+	AEmpathCharacter* const OtherEmpathChar = Cast<AEmpathCharacter>(OtherActor);
+	if (OtherEmpathChar && (OtherEmpathChar->GetCapsuleComponent() == OtherComp))
+	{
+		UWorld const* const World = GetWorld();
+
+		// If its been less than the max time between bumps, then increment the bump count
+		if (World->TimeSince(LastCapsuleBumpWhileMovingTime) < MaxTimeBetweenConsecutiveBumps)
+		{
+			NumConsecutiveBumpsWhileMoving++;
+
+			// If we've experienced several hits in a short time, and velocity is 0, we're stuck
+			if (NumConsecutiveBumpsWhileMoving > MinCapsuleBumpsBeforeRepositioning)
+			{
+				if (EmpathChar && EmpathChar->GetVelocity().IsNearlyZero())
+				{
+					// If we're stuck, stop trying to path
+					StopMovement();
+
+					// Then tell the character blocking our path to move
+					AEmpathAIController* const OtherAI = Cast<AEmpathAIController>(OtherEmpathChar->GetController());
+					if (OtherAI)
+					{
+						OtherAI->bShouldReposition = true;
+					}
+				}
+			}
+		}
+		else
+		{
+			// If its been longer than the max time between bumps, this is our first bump
+			NumConsecutiveBumpsWhileMoving = 1;
+		}
+
+		// Update last bumped time
+		LastCapsuleBumpWhileMovingTime = GetWorld()->GetTimeSeconds();
+	}
 }
 
 void AEmpathAIController::UpdateTargetingAndVision()
@@ -399,196 +884,7 @@ float AEmpathAIController::GetTargetSelectionScore(AActor* CandidateTarget,
 	return MIN_TARGET_SELECTION_SCORE;
 }
 
-void AEmpathAIController::SetAttackTarget(AActor* NewTarget)
-{
-	// Ensure we have a blackboard
-	if (Blackboard)
-	{
-		// Ensure that this is a new target
-		AActor* const OldTarget = Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::AttackTarget));
-		if (NewTarget != OldTarget)
-		{
-			// TODO: Unregister delegates on old target
-
-			// Do the set in the blackboard
-			Blackboard->SetValueAsObject(FEmpathBBKeys::AttackTarget, NewTarget);
-			LastSawAttackTargetTeleportTime = 0.0f;
-
-			// Update the target radius
-			if (AIManager)
-			{
-				CurrentAttackTargetRadius = AIManager->GetAttackTargetRadius(NewTarget);
-			}
-
-			// TODO: Register delegates on new target
-
-			// If the new target is null, then we can no longer see the target
-			if (NewTarget == nullptr)
-			{
-				Blackboard->SetValueAsBool(FEmpathBBKeys::bCanSeeTarget, false);
-			}	
-			ReceiveNewAttackTarget(OldTarget, NewTarget);
-		}
-	}
-}
-
-AActor* AEmpathAIController::GetAttackTarget() const
-{
-	if (Blackboard)
-	{
-		return Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::AttackTarget));
-	}
-
-	return nullptr;
-}
-
-bool AEmpathAIController::CanSeeTarget() const
-{
-	if (Blackboard)
-	{
-		return Blackboard->GetValueAsBool(FEmpathBBKeys::bCanSeeTarget);
-	}
-
-	return false;
-}
-
-void AEmpathAIController::SetFleeTarget(AActor* NewFleeTarget)
-{
-	if (Blackboard)
-	{
-		Blackboard->SetValueAsObject(FEmpathBBKeys::FleeTarget, NewFleeTarget);
-	}
-
-	return;
-}
-
-AActor* AEmpathAIController::GetFleeTarget() const
-{
-	if (Blackboard)
-	{
-		return Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::FleeTarget));
-	}
-
-	return nullptr;
-}
-
-void AEmpathAIController::SetDefendTarget(AActor* NewDefendTarget)
-{
-	if (Blackboard)
-	{
-		Blackboard->SetValueAsObject(FEmpathBBKeys::DefendTarget, NewDefendTarget);
-	}
-
-	return;
-}
-
-AActor* AEmpathAIController::GetDefendTarget() const
-{
-	if (Blackboard)
-	{
-		return Cast<AActor>(Blackboard->GetValueAsObject(FEmpathBBKeys::DefendTarget));
-	}
-
-	return nullptr;
-}
-
-FVector AEmpathAIController::GetGoalLocation() const
-{
-	if (Blackboard)
-	{
-		return Blackboard->GetValueAsVector(FEmpathBBKeys::GoalLocation);
-	}
-
-	// Default to current location.
-	return GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
-}
-
-void AEmpathAIController::SetGoalLocation(FVector GoalLocation)
-{
-	if (Blackboard)
-	{
-		Blackboard->SetValueAsVector(FEmpathBBKeys::GoalLocation, GoalLocation);
-	}
-}
-
-void AEmpathAIController::SetIsPassive(bool bNewPassive)
-{
-	if (Blackboard)
-	{
-		Blackboard->SetValueAsBool(FEmpathBBKeys::bIsPassive, bNewPassive);
-	}
-
-	return;
-}
-
-bool AEmpathAIController::IsPassive() const
-{
-	if (Blackboard)
-	{
-		return Blackboard->GetValueAsBool(FEmpathBBKeys::bIsPassive);
-	}
-
-	return false;
-}
-
-void AEmpathAIController::GetActorEyesViewPoint(FVector& out_Location, FRotator& out_Rotation) const
-{
-	if (VisionBoneName != NAME_None)
-	{
-		// Check if we have a skeletal mesh
-		USkeletalMeshComponent* const MySkelMesh = EmpathChar ? EmpathChar->GetMesh() : nullptr;
-		if (MySkelMesh)
-		{
-			// Check first for a socket matching the name
-			if (MySkelMesh->DoesSocketExist(VisionBoneName))
-			{
-				FTransform const SocketTransform = MySkelMesh->GetSocketTransform(VisionBoneName);
-				out_Location = SocketTransform.GetLocation();
-				out_Rotation = SocketTransform.Rotator();
-				return;
-			}
-
-			// If there is no socket, check for a bone
-			else
-			{
-				int32 const BoneIndex = MySkelMesh->GetBoneIndex(VisionBoneName);
-				if (BoneIndex != INDEX_NONE)
-				{
-					FTransform const BoneTransform = MySkelMesh->GetBoneTransform(BoneIndex);
-					out_Location = BoneTransform.GetLocation();
-					out_Rotation = BoneTransform.Rotator();
-					return;
-				}
-			}
-		}
-	}
-
-	// Fallback for if we don't have a skeletal mesh or if there are no sockets or bones
-	// matching the name
-	return Super::GetActorEyesViewPoint(out_Location, out_Rotation);
-}
-
-void AEmpathAIController::SetCanSeeTarget(bool bNewCanSeeTarget)
-{
-	if (Blackboard)
-	{
-		// Update the blackboard
-		Blackboard->SetValueAsBool(FEmpathBBKeys::bCanSeeTarget, bNewCanSeeTarget);
-
-		// If we can see the target, update shared knowledge of the target's location
-		if (bNewCanSeeTarget)
-		{
-			// update shared knowledge of target location
-			AActor* const Target = GetAttackTarget();
-			if (Target)
-			{
-				SetKnownTargetLocation(Target);
-			}
-		}
-	}
-}
-
-void AEmpathAIController::SetKnownTargetLocation(AActor const* AITarget)
+void AEmpathAIController::UpdateKnownTargetLocation(AActor const* AITarget)
 {
 	if (AIManager)
 	{
@@ -606,11 +902,11 @@ void AEmpathAIController::SetKnownTargetLocation(AActor const* AITarget)
 		}
 
 		// Update shared knowledge of target location
-		AIManager->SetIsTargetLocationKnown(AITarget);
+		AIManager->UpdateKnownTargetLocation(AITarget);
 
 		if (bNotifySpotted)
 		{
-			// We want to update vision immediately because AI doesn't necessarily need to reposition, 
+			// We want to update vision immediately because this AI doesn't necessarily need to reposition, 
 			// thinking it can't see the target for a few frames after hearing it.
 			UpdateVision(true);
 
@@ -666,118 +962,6 @@ void AEmpathAIController::OnLOSTraceComplete(const FTraceHandle& TraceHandle, FT
 	SetCanSeeTarget(bHasLOS);
 }
 
-FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& MoveRequest, 
-	FNavPathSharedPtr* OutPath)
-{
-	FPathFollowingRequestResult const Result = Super::MoveTo(MoveRequest, OutPath);
-
-	const FVector GoalLocation = MoveRequest.GetDestination();
-
-	// If success or already at the location, update the Blackboard
-	if (Result.Code == EPathFollowingRequestResult::RequestSuccessful ||
-		Result.Code == EPathFollowingRequestResult::AlreadyAtGoal)
-	{
-		if (Blackboard)
-		{
-			Blackboard->SetValueAsVector(FEmpathBBKeys::GoalLocation, GoalLocation);
-		}
-	}
-
-	// If success, fire our own notifies
-	if (Result.Code == EPathFollowingRequestResult::RequestSuccessful)
-	{
-		ReceiveMoveTo(GoalLocation);
-
-		// Bind capsule bump detection while not moving.
-		if (bDetectStuckAgainstOtherAI)
-		{
-			UCapsuleComponent* const MyPawnCapsule = EmpathChar ? EmpathChar->GetCapsuleComponent() : nullptr;
-			if (MyPawnCapsule)
-			{
-				MyPawnCapsule->OnComponentHit.AddDynamic(this, &AEmpathAIController::OnCapsuleBumpDuringMove);
-			}
-		}
-	}
-	return Result;
-}
-
-void AEmpathAIController::OnCapsuleBumpDuringMove(UPrimitiveComponent* HitComp,
-	AActor* OtherActor,
-	UPrimitiveComponent* OtherComp,
-	FVector NormalImpulse,
-	const FHitResult& Hit)
-{
-	// Check if the colliding actor is an Empath Character
-	AEmpathCharacter* const OtherEmpathChar = Cast<AEmpathCharacter>(OtherActor);
-	if (OtherEmpathChar && (OtherEmpathChar->GetCapsuleComponent() == OtherComp))
-	{
-		UWorld const* const World = GetWorld();
-
-		// If its been less than the max time between bumps, then increment the bump count
-		if (World->TimeSince(LastCapsuleBumpWhileMovingTime) < MaxTimeBetweenConsecutiveBumps)
-		{
-			NumConsecutiveBumpsWhileMoving++;
-
-			// If we've experienced several hits in a short time, and velocity is 0, we're stuck
-			if (NumConsecutiveBumpsWhileMoving > MinCapsuleBumpsBeforeRepositioning)
-			{
-				if (EmpathChar && EmpathChar->GetVelocity().IsNearlyZero())
-				{
-					// If we're stuck, stop trying to path
-					StopMovement();
-
-					// Then tell the character blocking our path to move
-					AEmpathAIController* const OtherAI = Cast<AEmpathAIController>(OtherEmpathChar->GetController());
-					if (OtherAI)
-					{
-						OtherAI->bShouldReposition = true;
-					}
-				}
-			}
-		}
-		else
-		{
-			// If its been longer than the max time between bumps, this is our first bump
-			NumConsecutiveBumpsWhileMoving = 1;
-		}
-
-		// Update last bumped time
-		LastCapsuleBumpWhileMovingTime = GetWorld()->GetTimeSeconds();
-	}
-}
-
-void AEmpathAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
-{
-	// Unbind capsule bump detection while not moving
-	UCapsuleComponent* const MyPawnCapsule = EmpathChar ? EmpathChar->GetCapsuleComponent() : nullptr;
-	if (MyPawnCapsule && MyPawnCapsule->OnComponentHit.IsAlreadyBound(this, &AEmpathAIController::OnCapsuleBumpDuringMove))
-	{
-		MyPawnCapsule->OnComponentHit.RemoveDynamic(this, &AEmpathAIController::OnCapsuleBumpDuringMove);
-	}
-
-	Super::OnMoveCompleted(RequestID, Result);
-}
-
-bool AEmpathAIController::IsFacingTarget(FVector TargetLoc, float AngleToleranceDeg) const
-{
-	// Check if we have a pawn
-	APawn const* const MyPawn = GetPawn();
-	if (MyPawn)
-	{
-		// Check the angle from the pawn's forward vector to the target
-		FVector const ToTarget = (TargetLoc - MyPawn->GetActorLocation()).GetSafeNormal2D();
-		FVector ForwardDir = MyPawn->GetActorForwardVector();
-
-		// Flatten the Z so we only take the left and right angle into account
-		ForwardDir.Z = 0.f;
-		float const Dot = ForwardDir | ToTarget;
-		float const CosTolerance = FMath::Cos(FMath::DegreesToRadians(AngleToleranceDeg));
-		return (Dot > CosTolerance);
-	}
-
-	return false;
-}
-
 bool AEmpathAIController::RunBehaviorTree(UBehaviorTree* BTAsset)
 {
 	bool bRunBTRequest = Super::RunBehaviorTree(BTAsset);
@@ -802,117 +986,6 @@ void AEmpathAIController::ResumePathFollowing()
 	ResumeMove(GetCurrentMoveRequestID());
 }
 
-void AEmpathAIController::SetCustomAimLocation(FVector AimLocation)
-{
-	CustomAimLocation = AimLocation;
-	bUseCustomAimLocation = true;
-}
-
-void AEmpathAIController::ClearCustomAimLocation()
-{
-	CustomAimLocation = FVector::ZeroVector;
-	bUseCustomAimLocation = false;
-}
-
-FVector AEmpathAIController::GetAimLocation() const
-{
-	// Check for manually set override
-	if (bUseCustomAimLocation)
-	{
-		return CustomAimLocation;
-	}
-
-	// Otherwise, aim for the attack target, so long as it is not teleporting
-	AActor* const AttackTarget = GetAttackTarget();
-	if (AttackTarget)
-	{
-		AEmpathVRCharacter* VRCharacterTarget = Cast<AEmpathVRCharacter>(AttackTarget);
-		if (!(VRCharacterTarget && VRCharacterTarget->IsTeleporting()))
-		{
-			return UEmpathUtility::GetAimLocationOnActor(AttackTarget);
-		}
-	}
-
-	// Otherwise, aim straight ahead
-	APawn* const MyPawn = GetPawn();
-	if (MyPawn)
-	{
-		return (MyPawn->GetActorLocation() + (MyPawn->GetActorForwardVector() * 10000.f));
-	}
-
-	return FVector::ZeroVector;
-}
-
-bool AEmpathAIController::IsTargetLost() const
-{
-	AActor* const Target = GetAttackTarget();
-	if (Target && AIManager)
-	{
-		return !AIManager->IsTargetLocationKnown(Target);
-	}
-
-	return false;
-}
-
-bool AEmpathAIController::IsDead() const
-{
-	if (IsPendingKill() || !EmpathChar || EmpathChar->bDead)
-	{
-		return true;
-	}
-	return false;
-}
-
-bool AEmpathAIController::ShouldAdvance(float DesiredMaxAttackRange) const
-{
-	AActor* AttackTarget = GetAttackTarget();
-
-	// If we were requested to move, return true
-	if (bShouldReposition)
-	{
-		// We want to reset the request to move, since we'll probably attempt to move when this is called.
-		// Since bShouldReposition is a protected variable, and this function is public,
-		// we need to get around the protection level.
-		AEmpathAIController* const MutableThis = const_cast<AEmpathAIController*>(this);
-		MutableThis->bShouldReposition = false;
-
-		return true;
-	}
-
-	// If we are too far away from attack target, we want to move
-	else if (EmpathChar && AttackTarget)
-	{
-		float const RangeToTarget = EmpathChar->GetDistanceToVR(AttackTarget);
-		if (RangeToTarget > DesiredMaxAttackRange)
-		{
-			return true;
-		}
-	}
-
-	// Otherwise, we want to move if we cannot see the attack target
-	return !CanSeeTarget();
-}
-
-float AEmpathAIController::GetMaxAttackRange() const
-{
-	if (EmpathChar)
-	{
-		return EmpathChar->MaxEffectiveDistance + CurrentAttackTargetRadius;
-	}
-	return 0.0f;
-}
-
-float AEmpathAIController::GetRangeToTarget() const
-{
-	AActor const* const AttackTarget = GetAttackTarget();
-	if (EmpathChar && AttackTarget)
-	{
-		return EmpathChar->GetDistanceTo(AttackTarget) - CurrentAttackTargetRadius;
-	}
-
-	return 0.f;
-}
-
 void AEmpathAIController::OnAttackTargetTeleported(AActor* Target, FTransform From, FTransform Destination)
 {
 	// If the target disappeared in front of me
@@ -932,20 +1005,15 @@ void AEmpathAIController::OnAttackTargetTeleported(AActor* Target, FTransform Fr
 	}
 }
 
-float AEmpathAIController::GetTimeSinceLastSawAttackTargetTeleport() const
-{
-	return GetWorld()->TimeSince(LastSawAttackTargetTeleportTime);
-}
-
 int32 AEmpathAIController::GetNumAIsNearby(float Radius) const
 {
 	int32 Count = 0;
 	APawn const* const MyPawn = GetPawn();
 
 	// Check how close each existing nearby AI is to this pawn
-	if (MyPawn)
+	if (MyPawn && AIManager)
 	{
-		for (AEmpathAIController* CurrentAI : TActorRange<AEmpathAIController>(GetWorld()))
+		for (AEmpathAIController* CurrentAI : AIManager->EmpathAICons)
 		{
 			if (CurrentAI != this)
 			{
@@ -963,41 +1031,28 @@ int32 AEmpathAIController::GetNumAIsNearby(float Radius) const
 	return Count;
 }
 
-bool AEmpathAIController::IsAIRunning() const
+void AEmpathAIController::OnCharacterDeath()
 {
-	UBrainComponent* const Brain = GetBrainComponent();
-	if (Brain)
-	{
-		return Brain->IsRunning();
-	}
-
-	return false;
+	EmpathChar->OnDeath.RemoveDynamic(this, &AEmpathAIController::OnCharacterDeath);
+	UnregisterAIManager();
+	ReceiveCharacterDeath();
 }
 
-bool AEmpathAIController::IsTargetTeleporting() const
+void AEmpathAIController::UnregisterAIManager()
 {
-	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
-	if (VRCharTarget && VRCharTarget->IsTeleporting())
+	if (AIManager)
 	{
-		return true;
-	}
-	return false;
-}
+		// Remove us from the list of AI cons
+		AIManager->EmpathAICons.RemoveAtSwap(AIManagerIndex);
 
-void AEmpathAIController::OnLostPlayerTarget()
-{
-	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
-	if (!IsPassive() && VRCharTarget)
-	{
-		ReceiveLostPlayerTarget();
-	}
-}
+		// Update the index we swapped with
+		AEmpathAIController* SwappedAICon = AIManager->EmpathAICons[AIManagerIndex];
+		if (SwappedAICon)
+		{
+			SwappedAICon->AIManagerIndex = AIManagerIndex;
+		}
 
-void AEmpathAIController::OnPlayerSearchStarted()
-{
-	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
-	if (!IsPassive() && VRCharTarget)
-	{
-		ReceiveOnPlayerSearchStarted();
+		AIManager->CheckForAwareAIs();
 	}
+	return;
 }

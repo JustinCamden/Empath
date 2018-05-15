@@ -31,4 +31,8 @@ bool AEmpathVRCharacter::IsTeleporting_Implementation() const
 	return false;
 }
 
-
+EEmpathTeam AEmpathVRCharacter::GetTeamNum_Implementation() const
+{
+	// We should always return player for VR characters
+	return EEmpathTeam::Player;
+}

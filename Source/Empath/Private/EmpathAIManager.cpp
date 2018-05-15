@@ -12,7 +12,6 @@ bool FSecondaryAttackTarget::IsValid() const
 	return (TargetActor != nullptr) && !TargetActor->IsPendingKill();
 }
 
-
 // Sets default values
 AEmpathAIManager::AEmpathAIManager()
 {
@@ -94,7 +93,7 @@ void AEmpathAIManager::GetNumAITargeting(AActor const* Target, int32& NumAITarge
 	NumAITargetingCandiate = 0;
 	NumTotalAI = 0;
 
-	for (AEmpathAIController* AI : TActorRange<AEmpathAIController>(GetWorld()))
+	for (AEmpathAIController* AI : EmpathAICons)
 	{
 		++NumTotalAI;
 
@@ -119,7 +118,7 @@ float AEmpathAIManager::GetAttackTargetRadius(AActor* AttackTarget) const
 	return 0.0f;
 }
 
-void AEmpathAIManager::SetIsTargetLocationKnown(AActor const* Target)
+void AEmpathAIManager::UpdateKnownTargetLocation(AActor const* Target)
 {
 	// If the target is a player
 	if (Cast<AEmpathVRCharacter>(Target) != nullptr)
@@ -137,19 +136,16 @@ void AEmpathAIManager::SetIsTargetLocationKnown(AActor const* Target)
 		// AIs that the player is in the area
 		if (bPlayerHasEverBeenSeen == false)
 		{
-			for (AEmpathAIController* AI : TActorRange<AEmpathAIController>(GetWorld()))
+			for (AEmpathAIController* AI : EmpathAICons)
 			{
-				if (AI->IsPassive() == false)
-				{
-					AI->ReceiveTargetSeenForFirstTime();
-				}
+				AI->OnTargetSeenForFirstTime();
 			}
 
 			bPlayerHasEverBeenSeen = true;
 		}
 	}
 
-	// Secondart targets are always known, so just ignore any other case
+	// Secondary targets are always known, so just ignore any other case
 }
 
 bool AEmpathAIManager::IsTargetLocationKnown(AActor const* Target) const
@@ -213,7 +209,7 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 
 		// Signal all AI to respond to losing player
 		// #TODO flag the AI closest to players last known position
-		for (AEmpathAIController* AI : TActorRange<AEmpathAIController>(GetWorld()))
+		for (AEmpathAIController* AI : EmpathAICons)
 		{
 			if (AI->IsAIRunning())
 			{
@@ -229,11 +225,11 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 
 		// Start searching
 		// #TODO have flagged AI check player's last known position
-		for (AEmpathAIController* AI : TActorRange<AEmpathAIController>(GetWorld()))
+		for (AEmpathAIController* AI : EmpathAICons)
 		{
 			if (AI->IsAIRunning())
 			{
-				AI->OnPlayerSearchStarted();
+				AI->OnSearchForPlayerStarted();
 			}
 		}
 		break;
@@ -246,5 +242,26 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 
 	break;
 
+	}
+}
+
+void AEmpathAIManager::CheckForAwareAIs()
+{
+	if (bPlayerHasEverBeenSeen)
+	{
+		// Check whether any remaining AIs are active
+		for (AEmpathAIController* AI : EmpathAICons)
+		{
+			if (!AI->IsPassive())
+			{
+				return;
+			}
+		}
+
+		// If not, we are no longer aware of the player
+		PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+		bPlayerHasEverBeenSeen = false;
+		bIsPlayerLocationKnown = false;
+		return;
 	}
 }

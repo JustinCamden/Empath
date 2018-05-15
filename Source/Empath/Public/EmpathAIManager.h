@@ -47,31 +47,40 @@ public:
 	/** Returns whether the location of the target is known. */
 	bool IsTargetLocationKnown(AActor const* Target) const;
 
-	/** Sets the known location of the target. */
-	void SetIsTargetLocationKnown(AActor const* Target);
+	/** Alerts us that the target has been spotted, and updates us as to its location. */
+	void UpdateKnownTargetLocation(AActor const* Target);
 
 	/** Returns whether the location of the target may be lost. */
 	bool IsPlayerPotentiallyLost() const;
 
+	/** List of the EmpathAIControllers in the scene. */
+	UPROPERTY(Category = "Empath|AI", BlueprintReadOnly)
+	TArray<AEmpathAIController*> EmpathAICons;
+
+	/** Called when an AI controller dies, to calculate whether any remaining AIs are aware of the player. */
+	void CheckForAwareAIs();
+
 protected:
-	/** How long the AI has to find the player after teleporting before declaring him "lost", in seconds */
+	/** How long the AI has to find the player after teleporting before declaring him "lost", in seconds. */
 	float LostPlayerTimeThreshold;
 	float StartSearchingTimeThreshold;
 
-	// Called when the game starts or when spawned
+	/** Called when the game starts or when spawned. */
 	virtual void BeginPlay() override;
 
-	// List of the non-player attack targets in the scene
+	/** List of the non-player attack targets in the scene. */
 	UPROPERTY(Category = "Empath|AI", EditAnywhere, BlueprintReadWrite)
 	TArray<FSecondaryAttackTarget> SecondaryAttackTargets;
 
-	// Variables governing player awareness
+	/** Variables governing player awareness. */
 	bool bPlayerHasEverBeenSeen;
 	bool bIsPlayerLocationKnown;
 	EPlayerAwarenessState PlayerAwarenessState;
 	FVector LastKnownPlayerLocation;
 	FTimerHandle LostPlayerTimerHandle;
+
+
 private:
-	/** Removes any stale or dead secondary targets from the list. */
+	/** Removes any stale or dead secondary AI cons from the list. */
 	void CleanUpSecondaryTargets();
 };

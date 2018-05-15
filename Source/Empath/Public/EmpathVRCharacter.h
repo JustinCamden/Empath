@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EmpathTeamAgentInterface.h"
 #include "VRCharacter.h"
 #include "EmpathVRCharacter.generated.h"
 
@@ -10,18 +11,24 @@
  * 
  */
 UCLASS()
-class EMPATH_API AEmpathVRCharacter : public AVRCharacter
+class EMPATH_API AEmpathVRCharacter : public AVRCharacter, public IEmpathTeamAgentInterface
 {
 	GENERATED_BODY()
 public:
+	// ---------------------------------------------------------
+	//	TeamAgent Interface
+
+	/** Returns the team number of the actor */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Team")
+	EEmpathTeam GetTeamNum() const;
+
 	AEmpathVRCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-	/** Returns the world location for the center mass of the character.
-	 If set to a component, gets that component's location. Otherwise, uses the VR location */
+	/** Returns the world location for the center mass of the character. If set to a component, gets that component's location. Otherwise, uses the VR location */
 	UFUNCTION(Category = "Empath|VRCharacter", BlueprintCallable, BlueprintPure)
 	FVector GetAimLocation() const;
 
-	UFUNCTION(Category = "Empath|VRCharacter", BlueprintCallable, BlueprintPure)
+	UFUNCTION(Category = "Empath|Health", BlueprintCallable, BlueprintPure)
 	bool IsDead() const { return bDead; }
 	
 	/** Wrapper for GetDistanceTo function that takes into account that this is a VR character */
