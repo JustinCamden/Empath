@@ -38,8 +38,11 @@ public:
 	/** Constructor like behavior. */
 	AEmpathAIController(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-	/** Override for BeginPlayer to register delegates on the VR Character. */
+	/** Override for BeginPlay to register delegates on the VR Character. */
 	virtual void BeginPlay() override;
+
+	/** Override for EndPlayer that enures we are unregistered with the AI manager. */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** Registers this AI controller with the AI Manager. */
 	void RegisterAIManager(AEmpathAIManager* RegisteredAIManager);
@@ -288,7 +291,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	float GetFleeTargetRadius() const;
 
-	/** Whether we want to engage our attack target, depending on whether we can see it and what behavior mode we are in. */
+	/** Returns whether we want to engage our attack target, depending on whether we can see it and what behavior mode we are in. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	bool WantsToEngageAttackTarget() const;
 

@@ -40,10 +40,7 @@ void AEmpathAIManager::BeginPlay()
 	// Grab an AI controllers that were not already registered with us. Shouldn't ever happen, but just in case.
 	for (AEmpathAIController* CurrAICon : TActorRange<AEmpathAIController>(GetWorld()))
 	{
-		if (!CurrAICon->IsRegisteredWithAIManager())
-		{
-			CurrAICon->RegisterAIManager(this);
-		}
+		CurrAICon->RegisterAIManager(this);
 	}
 
 	// Bind delegates to the player

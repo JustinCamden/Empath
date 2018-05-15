@@ -8,7 +8,7 @@
 #include "EmpathVRCharacter.h"
 #include "EmpathCharacter.h"
 #include "Perception/AIPerceptionComponent.h"
-#include "EmpathUtility.h"
+#include "EmpathFunctionLibrary.h"
 #include "DrawDebugHelpers.h"
 #include "Runtime/Engine/Public/EngineUtils.h"
 
@@ -73,13 +73,28 @@ void AEmpathAIController::BeginPlay()
 	Super::BeginPlay();
 	
 	// Grab the AI Manager
-	AEmpathAIManager* GrabbedAIManager = GetWorld()->GetAuthGameMode<AEmpathGameModeBase>()->GetAIManager();
-	RegisterAIManager(GrabbedAIManager);
+	AEmpathGameModeBase* EmpathGMD = GetWorld()->GetAuthGameMode<AEmpathGameModeBase>();
+	if (EmpathGMD)
+	{
+		AEmpathAIManager* GrabbedAIManager = EmpathGMD->GetAIManager();
+		RegisterAIManager(GrabbedAIManager);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ERROR: Not running in Empath game mode!"));
+	}
+}
+
+void AEmpathAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+	// Ensure we are unregistered from the AI manager
+	UnregisterAIManager();
 }
 
 void AEmpathAIController::RegisterAIManager(AEmpathAIManager* RegisteringAIManager)
 {
-	if (RegisteringAIManager)
+	if (!AIManager && RegisteringAIManager)
 	{
 		AIManager = RegisteringAIManager;
 		AIManagerIndex = AIManager->EmpathAICons.Add(this);
@@ -412,7 +427,7 @@ FVector AEmpathAIController::GetAimLocation() const
 		AEmpathVRCharacter* VRCharacterTarget = Cast<AEmpathVRCharacter>(AttackTarget);
 		if (!(VRCharacterTarget && VRCharacterTarget->IsTeleporting()))
 		{
-			return UEmpathUtility::GetAimLocationOnActor(AttackTarget);
+			return UEmpathFunctionLibrary::GetAimLocationOnActor(AttackTarget);
 		}
 	}
 
@@ -704,7 +719,7 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 
 		// Trace to where we are trying to aim
 		FVector const TraceStart = ViewLoc;
-		FVector const TraceEnd = UEmpathUtility::GetAimLocationOnActor(AttackTarget);
+		FVector const TraceEnd = UEmpathFunctionLibrary::GetAimLocationOnActor(AttackTarget);
 
 		// Check whether the target's location is known or may be lost
 		bool const bAlreadyKnowsTargetLoc = AIManager->IsTargetLocationKnown(AttackTarget);
@@ -1197,17 +1212,21 @@ void AEmpathAIController::UnregisterAIManager()
 {
 	if (AIManager)
 	{
-		// Remove us from the list of AI cons
+		//// Remove us from the list of AI cons
 		AIManager->EmpathAICons.RemoveAtSwap(AIManagerIndex);
 
 		// Update the index we swapped with
-		AEmpathAIController* SwappedAICon = AIManager->EmpathAICons[AIManagerIndex];
-		if (SwappedAICon)
+		if (AIManagerIndex < AIManager->EmpathAICons.Num())
 		{
-			SwappedAICon->AIManagerIndex = AIManagerIndex;
+			AEmpathAIController* SwappedAICon = AIManager->EmpathAICons[AIManagerIndex];
+			if (SwappedAICon)
+			{
+				//SwappedAICon->AIManagerIndex = AIManagerIndex;
+			}
 		}
 
 		AIManager->CheckForAwareAIs();
+		AIManager = nullptr;
 	}
 	return;
 }

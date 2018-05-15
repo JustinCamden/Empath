@@ -17,13 +17,11 @@ class EMPATH_API IEmpathTeamAgentInterface : public IGenericTeamAgentInterface
 {
 	GENERATED_IINTERFACE_BODY()
 
-		/** Returns the team number of the actor */
-		UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Team")
-		EEmpathTeam GetTeamNum() const;
+	/** Returns the team number of the actor. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Team")
+	EEmpathTeam GetTeamNum() const;
 
 	virtual FGenericTeamId GetGenericTeamId() const override;
 	virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
-
-private:
 };
 

@@ -1,21 +1,21 @@
 // Copyright 2018 Team Empath All Rights Reserved
 
-#include "EmpathUtility.h"
+#include "EmpathFunctionLibrary.h"
 #include "EmpathVRCharacter.h"
 #include "EmpathGameModeBase.h"
 
-const FVector UEmpathUtility::GetAimLocationOnActor(AActor const* Actor)
+const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(AActor const* Actor)
 {
 	// Check if the object is a pawn
 	APawn const* const TargetPawn = Cast<APawn>(Actor);
 	if (TargetPawn)
 	{
 		// Check if the object is the vr player
-		AEmpathVRCharacter const* const TargetPlayer = Cast<AEmpathVRCharacter>(TargetPawn);
-		if (TargetPlayer)
+		AEmpathVRCharacter const* const TargetVRChar = Cast<AEmpathVRCharacter>(TargetPawn);
+		if (TargetVRChar)
 		{
 			// Aim at the defined center mass of the vr character
-			return TargetPlayer->GetAimLocation();
+			return TargetVRChar->GetAimLocation();
 		}
 	}
 
@@ -47,7 +47,19 @@ const FVector UEmpathUtility::GetAimLocationOnActor(AActor const* Actor)
 	return Actor ? Actor->GetActorLocation() : FVector::ZeroVector;
 }
 
-const float UEmpathUtility::AngleBetweenVectors(FVector A, FVector B)
+const float UEmpathFunctionLibrary::AngleBetweenVectors(FVector A, FVector B)
 {
 	return FMath::RadiansToDegrees(FMath::Acos(A.GetSafeNormal() | B.GetSafeNormal()));
 }
+
+AEmpathAIManager* UEmpathFunctionLibrary::GetAIManager(UObject* WorldContextObject)
+{
+	AEmpathGameModeBase* EmpathGMD = WorldContextObject->GetWorld()->GetAuthGameMode<AEmpathGameModeBase>();
+	if (EmpathGMD)
+	{
+		return EmpathGMD->GetAIManager();
+	}
+	return nullptr;
+}
+
+
