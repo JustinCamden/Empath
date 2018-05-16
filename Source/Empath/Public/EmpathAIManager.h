@@ -7,9 +7,13 @@
 #include "GameFramework/Actor.h"
 #include "EmpathAIManager.generated.h"
 
+// Stat groups for UE Profiler
+DECLARE_STATS_GROUP(TEXT("EmpathAIManager"), STATGROUP_EMPATH_AIManager, STATCAT_Advanced);
+
 class AEmpathAIController;
 class AEmpathVRCharacter;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNewPlayerAwarenessStateDelegate, EPlayerAwarenessState, NewAwarenessState);
 
 UCLASS(Transient, BlueprintType)
 class EMPATH_API AEmpathAIManager : public AActor
@@ -17,6 +21,8 @@ class EMPATH_API AEmpathAIManager : public AActor
 	GENERATED_BODY()
 
 public:
+	static const float HearingDisconnectDist;
+
 	// Sets default values for this actor's properties
 	AEmpathAIManager();
 
@@ -59,6 +65,18 @@ public:
 
 	/** Called when an AI controller dies, to calculate whether any remaining AIs are aware of the player. */
 	void CheckForAwareAIs();
+
+	/** Called when we want to report a noise to the AI manager. This is a heavy operation so do not overuse it.
+	* @param NoiseInstigator	The actor that that caused the noise event, even if they are not the source of the noise (i.e. whoever cast the fireball).
+	* @param NoiseMaker			The actor directly responsible for the noise (i.e. the fireball).
+	* @param Location			Where the sound occured.
+	* @param HearingRadius		How far away the sound can be heard from.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void ReportNoise(AActor* NoiseInstigator, AActor* NoiseMaker, FVector Location, float HearingRadius);
+
+	/** Called when the player awareness state changes */
+	FOnNewPlayerAwarenessStateDelegate OnNewPlayerAwarenessState;
 
 protected:
 	/** How long the AI has to find the player after teleporting before declaring him "lost", in seconds. */

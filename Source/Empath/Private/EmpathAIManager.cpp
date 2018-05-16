@@ -6,6 +6,11 @@
 #include "EmpathVRCharacter.h"
 #include "EmpathTypes.h"
 
+// Stats for UE Profiler
+DECLARE_CYCLE_STAT(TEXT("HearingChecks"), STAT_EMPATH_HearingChecks, STATGROUP_EMPATH_AIManager);
+
+const float AEmpathAIManager::HearingDisconnectDist = 500.0f;
+
 // Allows us to get IsValid from SecondaryAttackTarget structs
 bool FSecondaryAttackTarget::IsValid() const
 {
@@ -20,6 +25,7 @@ AEmpathAIManager::AEmpathAIManager()
 	
 	// Initialize default settings
 	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+	OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 	bPlayerHasEverBeenSeen = false;
 	bIsPlayerLocationKnown = false;
 	LostPlayerTimeThreshold = 0.5f;
@@ -29,6 +35,7 @@ AEmpathAIManager::AEmpathAIManager()
 void AEmpathAIManager::OnPlayerDied()
 {
 	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+	OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 	bIsPlayerLocationKnown = false;
 }
 
@@ -162,6 +169,7 @@ void AEmpathAIManager::UpdateKnownTargetLocation(AActor const* Target)
 
 		// Stop the "lost player" state flow
 		PlayerAwarenessState = EPlayerAwarenessState::KnownLocation;
+		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 		GetWorldTimerManager().ClearTimer(LostPlayerTimerHandle);
 
 
@@ -215,6 +223,7 @@ void AEmpathAIManager::OnPlayerTeleported(AActor* Player, FVector Origin, FVecto
 	if (PlayerAwarenessState == EPlayerAwarenessState::KnownLocation)
 	{
 		PlayerAwarenessState = EPlayerAwarenessState::PotentiallyLost;
+		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 
 		// If this timer expires and no AI has found the player, he is officially "lost"
 		GetWorldTimerManager().SetTimer(LostPlayerTimerHandle,
@@ -234,6 +243,7 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 	case EPlayerAwarenessState::PotentiallyLost:
 		// Move on to lost state
 		PlayerAwarenessState = EPlayerAwarenessState::Lost;
+		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 		GetWorldTimerManager().SetTimer(LostPlayerTimerHandle,
 			FTimerDelegate::CreateUObject(this, &AEmpathAIManager::OnLostPlayerTimerExpired),
 			StartSearchingTimeThreshold, false);
@@ -255,6 +265,7 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 	case EPlayerAwarenessState::Lost:
 		// Start searching
 		PlayerAwarenessState = EPlayerAwarenessState::Searching;
+		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 
 		// Start searching
 		// #TODO have flagged AI check player's last known position
@@ -293,8 +304,64 @@ void AEmpathAIManager::CheckForAwareAIs()
 
 		// If not, we are no longer aware of the player
 		PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 		bPlayerHasEverBeenSeen = false;
 		bIsPlayerLocationKnown = false;
 		return;
 	}
+}
+
+void AEmpathAIManager::ReportNoise(AActor* NoiseInstigator, AActor* NoiseMaker, FVector Location, float HearingRadius)
+{
+	// Track how long it takes to complete this function for the profiler
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_HearingChecks);
+
+	// Since secondary targets are currently always known,
+	// we only care about this if the instigator is the player, and we are not currently aware of them
+	if (PlayerAwarenessState == EPlayerAwarenessState::KnownLocation)
+	{
+		return;
+	}
+	AEmpathVRCharacter* VRCharNoiseInstigator = Cast<AEmpathVRCharacter>(NoiseInstigator);
+	if (!VRCharNoiseInstigator)
+	{
+		VRCharNoiseInstigator = Cast<AEmpathVRCharacter>(NoiseInstigator->Instigator);
+		if (!VRCharNoiseInstigator)
+		{
+			return;
+		}
+	}
+
+	// Otherwise, loop through the AIs and see if any of them are in the hearing radius
+	bool bHeardSound = false;
+	for (AEmpathAIController* AI : EmpathAICons)
+	{
+		// If the AI is valid
+		if (!AI->IsPassive() && !AI->IsDead())
+		{
+			// Check if it is within hearing distance
+			float DistFromSound = (AI->GetPawn()->GetActorLocation() - Location).Size();
+			if (DistFromSound <= HearingRadius)
+			{
+				// If so, end the loop
+				bHeardSound = true;
+				break;
+			}
+		}
+	}
+
+	// If we heard the sound
+	if (bHeardSound)
+	{
+		// Check if it close enough to the instigator to be effectively the same location
+		float InstigatorDist = (Location - VRCharNoiseInstigator->GetVRLocation()).Size();
+		if (InstigatorDist <= HearingDisconnectDist)
+		{
+			// If so, we have found the target
+			UpdateKnownTargetLocation(VRCharNoiseInstigator);
+		}
+		
+		// TODO: Flag area for AI to investigate
+	}
+	return;
 }

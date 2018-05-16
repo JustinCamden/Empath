@@ -13,9 +13,9 @@
 UENUM(BlueprintType)
 enum class EEmpathTeam :uint8
 {
+	Neutral,
 	Player,
-	Enemy,
-	Neutral
+	Enemy
 };
 
 struct FEmpathBBKeys

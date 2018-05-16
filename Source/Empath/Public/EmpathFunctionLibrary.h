@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EmpathTeamAgentInterface.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "EmpathFunctionLibrary.generated.h"
 
@@ -24,7 +25,19 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
 	static const float AngleBetweenVectors(FVector A, FVector B);
 
+	/** Gets the angle and axis between 2 vectors. (Input does not need to be normalized.) */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static void AngleAndAxisBetweenVectors(FVector A, FVector B, float &Angle, FVector &Axis);
+
 	/** Gets the world's AI Manager. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI", meta = (WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static AEmpathAIManager* GetAIManager(UObject* WorldContextObject);
+
+	/** Returns whether an actor is the player. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	static const bool IsPlayer(AActor* Actor);
+
+	/** Gets the world's AI Manager. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	static const ETeamAttitude::Type GetTeamAttitudeTowards(AActor* A, AActor* B);
 };

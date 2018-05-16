@@ -52,6 +52,15 @@ const float UEmpathFunctionLibrary::AngleBetweenVectors(FVector A, FVector B)
 	return FMath::RadiansToDegrees(FMath::Acos(A.GetSafeNormal() | B.GetSafeNormal()));
 }
 
+void UEmpathFunctionLibrary::AngleAndAxisBetweenVectors(FVector A, FVector B, float &Angle, FVector &Axis)
+{
+	FVector ANormalized = A.GetSafeNormal();
+	FVector BNormalized = B.GetSafeNormal();
+	Angle = FMath::RadiansToDegrees(FMath::Acos(ANormalized | BNormalized));
+	Axis = FVector::CrossProduct(ANormalized, BNormalized);
+	return;
+}
+
 AEmpathAIManager* UEmpathFunctionLibrary::GetAIManager(UObject* WorldContextObject)
 {
 	AEmpathGameModeBase* EmpathGMD = WorldContextObject->GetWorld()->GetAuthGameMode<AEmpathGameModeBase>();
@@ -62,4 +71,49 @@ AEmpathAIManager* UEmpathFunctionLibrary::GetAIManager(UObject* WorldContextObje
 	return nullptr;
 }
 
+const bool UEmpathFunctionLibrary::IsPlayer(AActor* Actor)
+{
+	if (Actor)
+	{
+		AController* PlayerCon = Actor->GetWorld()->GetFirstPlayerController();
+		if (PlayerCon)
+		{
+			if (PlayerCon == Actor)
+			{
+				return true;
+			}
+			if (PlayerCon->GetPawn() == Actor)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+const ETeamAttitude::Type UEmpathFunctionLibrary::GetTeamAttitudeTowards(AActor* A, AActor* B)
+{
+	// Ensure the input is valid
+	if (!A || !B)
+	{
+		return ETeamAttitude::Neutral;
+	}
+
+	// Get the teams
+	if (A->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()) &&
+		B->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
+	{
+		EEmpathTeam TeamA = IEmpathTeamAgentInterface::Execute_GetTeamNum(A);
+		EEmpathTeam TeamB = IEmpathTeamAgentInterface::Execute_GetTeamNum(B);
+
+		// If either team is neutral, then we don't care about them
+		if (TeamA == EEmpathTeam::Neutral || TeamB == EEmpathTeam::Neutral)
+		{
+			return ETeamAttitude::Neutral;
+		}
+
+		return (TeamA == TeamB) ? ETeamAttitude::Friendly : ETeamAttitude::Hostile;
+	}
+	return ETeamAttitude::Neutral;
+
+}
 
