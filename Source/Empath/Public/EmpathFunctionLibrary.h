@@ -37,7 +37,15 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
 	static const bool IsPlayer(AActor* Actor);
 
-	/** Gets the world's AI Manager. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
-	static const ETeamAttitude::Type GetTeamAttitudeTowards(AActor* A, AActor* B);
+	/** Gets the team of the target actor. Includes fallbacks to check the targets instigator and controller if no team is found. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Teams")
+	static EEmpathTeam GetActorTeam(const AActor* Actor);
+
+	/** Gets the attitude of two actors towards each other. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Teams")
+	static const ETeamAttitude::Type GetTeamAttitudeTowards(const AActor* A, const AActor* B);
+
+	/** Add distributed impulse function, (borrowed from Robo Recall so if it causes problems, lets just remove it. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
+	static void AddDistributedImpulseAtLocation(USkeletalMeshComponent* SkelMesh, FVector Impulse, FVector Location, FName BoneName, float DistributionPct = 0.5f);
 };

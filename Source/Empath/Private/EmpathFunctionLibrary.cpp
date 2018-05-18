@@ -4,6 +4,10 @@
 #include "EmpathVRCharacter.h"
 #include "EmpathGameModeBase.h"
 
+// Static consts
+static const float MaxImpulsePerMass = 5000.f;
+static const float MaxPointImpulseMag = 120000.f;
+
 const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(AActor const* Actor)
 {
 	// Check if the object is a pawn
@@ -90,30 +94,138 @@ const bool UEmpathFunctionLibrary::IsPlayer(AActor* Actor)
 	}
 	return false;
 }
-const ETeamAttitude::Type UEmpathFunctionLibrary::GetTeamAttitudeTowards(AActor* A, AActor* B)
+
+EEmpathTeam UEmpathFunctionLibrary::GetActorTeam(AActor const* Actor)
 {
-	// Ensure the input is valid
-	if (!A || !B)
+	if (Actor)
+	{
+		// First check for the team agent interface on the actor
+		{
+			if (Actor->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
+			{
+				return IEmpathTeamAgentInterface::Execute_GetTeamNum(Actor);
+			}
+		}
+
+		// Next, check on the controller
+		{
+			APawn const* const TargetPawn = Cast<APawn>(Actor);
+			if (TargetPawn)
+			{
+				AController const* const TargetController = Cast<AController>(TargetPawn);
+				if (TargetController && TargetController->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
+				{
+					return IEmpathTeamAgentInterface::Execute_GetTeamNum(TargetController);
+				}
+			}
+		}
+
+		// Next, check the instigator
+		{
+			AActor const* TargetInstigator = Actor->Instigator;
+			if (TargetInstigator && TargetInstigator->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
+			{
+				return IEmpathTeamAgentInterface::Execute_GetTeamNum(Actor->Instigator);
+			}
+		}
+
+		// Finally, check if the instigator controller has a team
+		{
+			AController* const InstigatorController = Actor->GetInstigatorController();
+			if (InstigatorController && InstigatorController->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
+			{
+				return IEmpathTeamAgentInterface::Execute_GetTeamNum(InstigatorController);
+			}
+		}
+	}
+
+	// By default, return neutral
+	return EEmpathTeam::Neutral;
+}
+
+const ETeamAttitude::Type UEmpathFunctionLibrary::GetTeamAttitudeTowards(const AActor* A, const AActor* B)
+{
+	// Get the teams
+	EEmpathTeam TeamA = GetActorTeam(A);
+	EEmpathTeam TeamB = GetActorTeam(B);
+
+	// If either of them are neutral, we don't care about them
+	if (TeamA == EEmpathTeam::Neutral || TeamB == EEmpathTeam::Neutral)
 	{
 		return ETeamAttitude::Neutral;
 	}
 
-	// Get the teams
-	if (A->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()) &&
-		B->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
+	// If they're the same, return frendly
+	if (TeamA == TeamB)
 	{
-		EEmpathTeam TeamA = IEmpathTeamAgentInterface::Execute_GetTeamNum(A);
-		EEmpathTeam TeamB = IEmpathTeamAgentInterface::Execute_GetTeamNum(B);
-
-		// If either team is neutral, then we don't care about them
-		if (TeamA == EEmpathTeam::Neutral || TeamB == EEmpathTeam::Neutral)
-		{
-			return ETeamAttitude::Neutral;
-		}
-
-		return (TeamA == TeamB) ? ETeamAttitude::Friendly : ETeamAttitude::Hostile;
+		return ETeamAttitude::Friendly;
 	}
-	return ETeamAttitude::Neutral;
 
+	// Otherwise, they're hostile
+	return ETeamAttitude::Hostile;
+}
+
+void UEmpathFunctionLibrary::AddDistributedImpulseAtLocation(USkeletalMeshComponent* SkelMesh, FVector Impulse, FVector Location, FName BoneName, float DistributionPct)
+{
+	if (Impulse.IsNearlyZero() || (SkelMesh == nullptr))
+	{
+		return;
+	}
+
+	// 
+	// overall strategy here: 
+	// add some portion of the overall impulse distributed across all bodies in a radius, with linear falloff, but preserving impulse direction
+	// the remaining portion is applied as a straight impulse to the given body at the given location
+	// Desired outcome is similar output to a simple hard whack at the loc/bone, but more stable.
+	//
+
+	// compute total mass, per-bone distance info
+	TArray<float> BodyDistances;
+	BodyDistances.AddZeroed(SkelMesh->Bodies.Num());
+	float MaxDistance = 0.f;
+
+	float TotalMass = 0.0f;
+	for (int32 i = 0; i < SkelMesh->Bodies.Num(); ++i)
+	{
+		FBodyInstance* const BI = SkelMesh->Bodies[i];
+		if (BI->IsValidBodyInstance())
+		{
+			TotalMass += BI->GetBodyMass();
+
+			FVector const BodyLoc = BI->GetUnrealWorldTransform().GetLocation();
+			float Dist = (Location - BodyLoc).Size();
+			BodyDistances[i] = Dist;
+			MaxDistance = FMath::Max(MaxDistance, Dist);
+		}
+	}
+
+	// sanity, since we divide with these
+	TotalMass = FMath::Max(TotalMass, KINDA_SMALL_NUMBER);
+	MaxDistance = FMath::Max(MaxDistance, KINDA_SMALL_NUMBER);
+
+	float const OriginalImpulseMag = Impulse.Size();
+	FVector const ImpulseDir = Impulse / OriginalImpulseMag;
+	float const DistributedImpulseMag = OriginalImpulseMag * DistributionPct;
+	float const PointImpulseMag = FMath::Min((OriginalImpulseMag - DistributedImpulseMag), MaxPointImpulseMag);
+
+	const float DistributedImpulseMagPerMass = FMath::Min((DistributedImpulseMag / TotalMass), MaxImpulsePerMass);
+	for (int32 i = 0; i < SkelMesh->Bodies.Num(); ++i)
+	{
+		FBodyInstance* const BI = SkelMesh->Bodies[i];
+
+		if (BI->IsValidBodyInstance())
+		{
+			// linear falloff
+			float const ImpulseFalloffScale = FMath::Max(0.f, 1.f - (BodyDistances[i] / MaxDistance));
+			const float ImpulseMagForThisBody = DistributedImpulseMagPerMass * BI->GetBodyMass() * ImpulseFalloffScale;
+			if (ImpulseMagForThisBody > 0.f)
+			{
+				BI->AddImpulse(ImpulseDir*ImpulseMagForThisBody, false);
+			}
+		}
+	}
+
+	// add the rest as a point impulse on the loc
+	SkelMesh->AddImpulseAtLocation(ImpulseDir * PointImpulseMag, Location, BoneName);
 }
 

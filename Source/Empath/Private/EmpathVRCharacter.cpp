@@ -43,8 +43,8 @@ void AEmpathVRCharacter::TeleportToVR(FVector Destination, float DeltaYaw)
 	FVector Origin = GetVRLocation();
 
 	// Fire notifies
-	OnTeleport.Broadcast(this, Origin, Destination);
 	ReceiveTeleport(Origin, Destination, DeltaYaw);
+	OnTeleport.Broadcast(this, Origin, Destination);
 
 	// TODO: Implement our actual teleportation in C++. 
 	// For now, we can use the blueprint implementation of "OnTeleport"
@@ -54,8 +54,8 @@ void AEmpathVRCharacter::TeleportToVR(FVector Destination, float DeltaYaw)
 void AEmpathVRCharacter::Die()
 {
 	// Fire delegates and notifies
-	OnDeath.Broadcast();
 	ReceiveDeath();
+	OnDeath.Broadcast();
 
 	// TODO: Implement actual death
 	bDead = true;

@@ -84,3 +84,33 @@ enum class EEmpathBehaviorMode : uint8
 	Defend,
 	Flee
 };
+
+USTRUCT(BlueprintType)
+struct FPerBoneDamageScale
+{
+	GENERATED_USTRUCT_BODY()
+
+	/**
+	* @param BoneNames			Which bones should have this damage scale.
+	* @param DamageScale		The value by which damage to the affected bones is multiplied.
+	*/
+	UPROPERTY(EditDefaultsOnly, Category = "PerBoneDamage")
+	TSet<FName> BoneNames;
+
+	UPROPERTY(EditDefaultsOnly, Category = "PerBoneDamage")
+	float DamageScale;
+
+	FPerBoneDamageScale() :
+		DamageScale(1.0f)
+	{}
+};
+
+struct FDamageHistoryEvent
+{
+	float DamageAmount;
+	float EventTimestamp;
+
+	FDamageHistoryEvent(float InDamageAmount, float InEventTimestamp)
+		: DamageAmount(InDamageAmount), EventTimestamp(InEventTimestamp)
+	{}
+};

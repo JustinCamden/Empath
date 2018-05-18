@@ -41,7 +41,7 @@ public:
 	/** Override for BeginPlay to register delegates on the VR Character. */
 	virtual void BeginPlay() override;
 
-	/** Override for EndPlayer that enures we are unregistered with the AI manager. */
+	/** Override for EndPlay that enures we are unregistered with the AI manager. */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** Registers this AI controller with the AI Manager. */

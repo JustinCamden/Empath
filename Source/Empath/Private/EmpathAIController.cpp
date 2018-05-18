@@ -81,7 +81,7 @@ void AEmpathAIController::BeginPlay()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ERROR: Not running in Empath game mode!"));
+		UE_LOG(LogTemp, Warning, TEXT("%s ERROR: Not running in Empath game mode!"), *GetName());
 	}
 }
 
@@ -456,7 +456,7 @@ void AEmpathAIController::ClearCustomAimLocation()
 bool AEmpathAIController::IsDead() const
 {
 	AEmpathCharacter*EmpathChar = GetEmpathChar();
-	if (IsPendingKill() || !EmpathChar || EmpathChar->bDead)
+	if (IsPendingKill() || !EmpathChar || EmpathChar->IsDead())
 	{
 		return true;
 	}
