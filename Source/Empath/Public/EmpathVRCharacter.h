@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "EmpathTeamAgentInterface.h"
+#include "EmpathAimLocationInterface.h"
 #include "VRCharacter.h"
 #include "EmpathVRCharacter.generated.h"
 
@@ -14,7 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnVRCharacterDeathDelegate);
  * 
  */
 UCLASS()
-class EMPATH_API AEmpathVRCharacter : public AVRCharacter, public IEmpathTeamAgentInterface
+class EMPATH_API AEmpathVRCharacter : public AVRCharacter, public IEmpathTeamAgentInterface, public IEmpathAimLocationInterface
 {
 	GENERATED_BODY()
 public:
@@ -25,11 +26,14 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Team")
 	EEmpathTeam GetTeamNum() const;
 
-	AEmpathVRCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	// ---------------------------------------------------------
+	//	TeamAgent Interface
 
-	/** Returns the world location for the center mass of the character. If set to a component, gets that component's location. Otherwise, uses the VR location */
-	UFUNCTION(Category = "Empath|VRCharacter", BlueprintCallable, BlueprintPure)
-	FVector GetAimLocation() const;
+	/** Returns the team number of the actor */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Team")
+	FVector GetCustomAimLocation(FVector LookOrigin) const;
+
+	AEmpathVRCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	UFUNCTION(Category = "Empath|Health", BlueprintCallable, BlueprintPure)
 	bool IsDead() const { return bDead; }

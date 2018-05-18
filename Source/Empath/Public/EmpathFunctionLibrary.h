@@ -17,9 +17,13 @@ class EMPATH_API UEmpathFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 public:
-	/** Gets the center mass location of an actor, or the overriden location on a VR character. */
+	/** Gets the aim location of an actor (or its pawn if it is a controller). First checks for Aim Location interface, then calls GetCenterMassLocation. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
-	static const FVector GetAimLocationOnActor(AActor const* Actor);
+	static const FVector GetAimLocationOnActor(const AActor* Actor, FVector LookOrigin);
+
+	/** Gets the center mass location of an Actor, or the VR Location if it is a VR Character. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const FVector GetCenterMassLocationOnActor(const AActor* Actor);
 
 	/** Gets the angle between 2 vectors. (Input does not need to be normalized.) */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
@@ -43,7 +47,7 @@ public:
 
 	/** Gets the attitude of two actors towards each other. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Teams")
-	static const ETeamAttitude::Type GetTeamAttitudeTowards(const AActor* A, const AActor* B);
+	static const ETeamAttitude::Type GetTeamAttitudeBetween(const AActor* A, const AActor* B);
 
 	/** Add distributed impulse function, (borrowed from Robo Recall so if it causes problems, lets just remove it. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")

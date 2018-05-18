@@ -166,24 +166,8 @@ void AEmpathCharacter::StartRagdoll()
 	USkeletalMeshComponent* const MyMesh = GetMesh();
 	if (MyMesh)
 	{
-		//SetCharacterPhysicsState(EOdinCharacterPhysicsState::FullRagdoll);
-		//MyMesh->SetCollisionProfileName(FOdinCollisionrProfileNames::CollisionProfileName_Ragdoll);
-
-		//// set to ignore all interactions rather than turning off collision, since there's a good chance we will get back up and 
-		//// physics state would have to be recreated again.
-		//GetCapsuleComponent()->SetCollisionProfileName(FOdinCollisionrProfileNames::CollisionProfileName_CapsuleWhileRagdolled);
-		//bRagdoll = true;
-
-		//// start timer for getting back up
-		//if (bDead == false && bDying == false)
-		//{
-		//	ResumeAutomaticRecoverFromRagdoll();
-		//}
-		//else
-		//{
-		//	StopAutomaticRecoverFromRagdoll();
-		//	bDeferredGetUpFromRagdoll = false;
-		//}
+		// TODO: Hook this up with a physics state manager that ideally will also allow grabbing and throwing
+		MyMesh->SetSimulatePhysics(true);
 	}
 }
 

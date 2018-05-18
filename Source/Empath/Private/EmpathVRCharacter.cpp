@@ -8,18 +8,6 @@ AEmpathVRCharacter::AEmpathVRCharacter(const FObjectInitializer& ObjectInitializ
 	bDead = false;
 }
 
-FVector AEmpathVRCharacter::GetAimLocation() const
-{
-	if (AimLocationComponent)
-	{
-		return AimLocationComponent->GetComponentLocation();
-	}
-	else
-	{
-		return OffsetComponentToWorld.GetLocation();
-	}
-}
-
 float AEmpathVRCharacter::GetDistanceToVR(AActor* OtherActor) const
 {
 	return (GetVRLocation() - OtherActor->GetActorLocation()).Size();
@@ -59,4 +47,9 @@ void AEmpathVRCharacter::Die()
 
 	// TODO: Implement actual death
 	bDead = true;
+}
+
+FVector AEmpathVRCharacter::GetCustomAimLocation_Implementation(FVector LookOrigin) const
+{
+	return GetVRLocation();
 }

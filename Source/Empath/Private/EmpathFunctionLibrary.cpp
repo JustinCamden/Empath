@@ -3,26 +3,41 @@
 #include "EmpathFunctionLibrary.h"
 #include "EmpathVRCharacter.h"
 #include "EmpathGameModeBase.h"
+#include "EmpathAimLocationInterface.h"
 
 // Static consts
 static const float MaxImpulsePerMass = 5000.f;
 static const float MaxPointImpulseMag = 120000.f;
 
-const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(AActor const* Actor)
+const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(const AActor* Actor, FVector LookOrigin)
 {
-	// Check if the object is a pawn
-	APawn const* const TargetPawn = Cast<APawn>(Actor);
-	if (TargetPawn)
+	// First, check for the aim location interface
+	if (Actor->GetClass()->ImplementsInterface(UEmpathAimLocationInterface::StaticClass()))
 	{
-		// Check if the object is the vr player
-		AEmpathVRCharacter const* const TargetVRChar = Cast<AEmpathVRCharacter>(TargetPawn);
-		if (TargetVRChar)
-		{
-			// Aim at the defined center mass of the vr character
-			return TargetVRChar->GetAimLocation();
-		}
+		return IEmpathAimLocationInterface::Execute_GetCustomAimLocation(Actor, LookOrigin);
 	}
 
+	// Nect, check if the object as a controller. If so, call this function in its pawn instead.
+	const AController* ControllerTarget = Cast<AController>(Actor);
+	if (ControllerTarget && ControllerTarget->GetPawn())
+	{
+		return GetAimLocationOnActor(ControllerTarget->GetPawn(), LookOrigin);
+	}
+	
+	return GetCenterMassLocationOnActor(Actor);
+}
+
+const FVector UEmpathFunctionLibrary::GetCenterMassLocationOnActor(const AActor* Actor)
+{
+	// Check if the object is the vr player
+	const AEmpathVRCharacter* VRChar = Cast<AEmpathVRCharacter>(Actor);
+	if (VRChar)
+	{
+		// Aim at the defined center mass of the vr character
+		return VRChar->GetVRLocation();
+	}
+
+	// Else, get the center of the bounding box
 	if (Actor)
 	{
 		// Aim at bounds center
@@ -35,10 +50,10 @@ const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(AActor const* Actor)
 			UChildActorComponent const* const CAComp = Cast<const UChildActorComponent>(ActorComponent);
 			AActor const* const CA = CAComp ? CAComp->GetChildActor() : nullptr;
 			if (CA)
-			{
-				BoundingBox += CA->GetComponentsBoundingBox();
+				{
+					BoundingBox += CA->GetComponentsBoundingBox();
+				}
 			}
-		}
 
 		if (BoundingBox.IsValid)
 		{
@@ -95,7 +110,7 @@ const bool UEmpathFunctionLibrary::IsPlayer(AActor* Actor)
 	return false;
 }
 
-EEmpathTeam UEmpathFunctionLibrary::GetActorTeam(AActor const* Actor)
+EEmpathTeam UEmpathFunctionLibrary::GetActorTeam(const AActor* Actor)
 {
 	if (Actor)
 	{
@@ -143,7 +158,7 @@ EEmpathTeam UEmpathFunctionLibrary::GetActorTeam(AActor const* Actor)
 	return EEmpathTeam::Neutral;
 }
 
-const ETeamAttitude::Type UEmpathFunctionLibrary::GetTeamAttitudeTowards(const AActor* A, const AActor* B)
+const ETeamAttitude::Type UEmpathFunctionLibrary::GetTeamAttitudeBetween(const AActor* A, const AActor* B)
 {
 	// Get the teams
 	EEmpathTeam TeamA = GetActorTeam(A);

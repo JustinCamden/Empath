@@ -94,10 +94,10 @@ struct FPerBoneDamageScale
 	* @param BoneNames			Which bones should have this damage scale.
 	* @param DamageScale		The value by which damage to the affected bones is multiplied.
 	*/
-	UPROPERTY(EditDefaultsOnly, Category = "PerBoneDamage")
+	UPROPERTY(EditDefaultsOnly, Category = "Empath|PerBoneDamage")
 	TSet<FName> BoneNames;
 
-	UPROPERTY(EditDefaultsOnly, Category = "PerBoneDamage")
+	UPROPERTY(EditDefaultsOnly, Category = "Empath|PerBoneDamage")
 	float DamageScale;
 
 	FPerBoneDamageScale() :
@@ -105,12 +105,23 @@ struct FPerBoneDamageScale
 	{}
 };
 
+USTRUCT(BlueprintType)
 struct FDamageHistoryEvent
 {
+	GENERATED_USTRUCT_BODY()
+
+public:
+	/**
+	* @param DamageAmount		The amount of damage received.
+	* @param EventTimestamp		The time the damage was received.
+	*/
+	UPROPERTY(EditDefaultsOnly, Category = "Empath|DamageHistory")
 	float DamageAmount;
+	UPROPERTY(EditDefaultsOnly, Category = "Empath|DamageHistory")
 	float EventTimestamp;
 
-	FDamageHistoryEvent(float InDamageAmount, float InEventTimestamp)
-		: DamageAmount(InDamageAmount), EventTimestamp(InEventTimestamp)
+	FDamageHistoryEvent(float InDamageAmount = 0.0f, float InEventTimestamp = 0.0f)
+		: DamageAmount(InDamageAmount),
+		EventTimestamp(InEventTimestamp)
 	{}
 };

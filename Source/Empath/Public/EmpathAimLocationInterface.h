@@ -6,11 +6,11 @@
 #include "UObject/Interface.h"
 #include "EmpathAimLocationInterface.generated.h"
 
-// This class does not need to be modified.
+/** Interface used so characters can override their aim location or provide one of multiple aim locations depending on direction.*/
 UINTERFACE(MinimalAPI)
 class UEmpathAimLocationInterface : public UInterface
 {
-	GENERATED_BODY()
+	GENERATED_UINTERFACE_BODY()
 };
 
 /**
@@ -18,10 +18,9 @@ class UEmpathAimLocationInterface : public UInterface
  */
 class EMPATH_API IEmpathAimLocationInterface
 {
-	GENERATED_BODY()
-
-	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
-public:
-	
+	GENERATED_IINTERFACE_BODY()
+	/** Returns the aim location of the actor. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Utility")
+	FVector GetCustomAimLocation(FVector LookOrigin) const;
 	
 };

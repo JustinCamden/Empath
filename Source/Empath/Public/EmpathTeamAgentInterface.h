@@ -2,11 +2,12 @@
 
 #pragma once
 
+#include "GameFramework/Actor.h"
 #include "GenericTeamAgentInterface.h"
 #include "EmpathTypes.h"
 #include "EmpathTeamAgentInterface.generated.h"
 
-/** Interface used so characters and objects can be placed on teams and  */
+/** Interface used so characters and objects can be placed on teams and recognize teamates and enemies. */
 UINTERFACE()
 class UEmpathTeamAgentInterface : public UGenericTeamAgentInterface
 {
