@@ -11,7 +11,7 @@
 class AEmpathAIController;
 class UDamageType;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterDeathDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCharacterDeathDelegate, const AController*, DeathInstigator, const AActor*, DeathCauser, const UDamageType*, DeathDamageType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterStunnedDelegate, float, StunDuration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterStunEndDelegate);
 
@@ -74,11 +74,11 @@ public:
 
 	/** Called when character's health depletes to 0. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Health")
-	void Die();
+	void Die(const AController* DeathInstigator = nullptr, const AActor* DeathCauser = nullptr, const UDamageType* DeathDamageType = nullptr);
 
 	/** Called when character's health depletes to 0. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health", meta = (DisplayName = "Die"))
-	void ReceiveDie();
+	void ReceiveDie(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when character's health depletes to 0. */
 	UPROPERTY(BlueprintAssignable, Category = "Empath|Health")
@@ -188,7 +188,7 @@ public:
 
 	/** Processes final damage after all calculations are complete. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health")
-	void ProcessFinalDamage(const float DamageAmount, const UDamageType* DamageType);
+	void ProcessFinalDamage(const float DamageAmount, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser);
 
 protected:
 

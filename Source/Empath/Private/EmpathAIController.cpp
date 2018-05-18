@@ -1196,7 +1196,7 @@ int32 AEmpathAIController::GetNumAIsNearby(float Radius) const
 	return Count;
 }
 
-void AEmpathAIController::OnCharacterDeath()
+void AEmpathAIController::OnCharacterDeath(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
 	// Remove ourselves from the AI manager
 	UnregisterAIManager();
@@ -1205,7 +1205,7 @@ void AEmpathAIController::OnCharacterDeath()
 	SetAttackTarget(nullptr);
 
 	// Fire notifies
-	ReceiveCharacterDeath();
+	ReceiveCharacterDeath(DeathInstigator, DeathCauser, DeathDamageType);
 }
 
 void AEmpathAIController::UnregisterAIManager()

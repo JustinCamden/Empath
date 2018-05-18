@@ -83,7 +83,7 @@ bool AEmpathCharacter::CanDie_Implementation()
 	return (!bInvincible && !bDead);
 }
 
-void AEmpathCharacter::Die()
+void AEmpathCharacter::Die(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
 	if (CanDie())
 	{
@@ -98,12 +98,12 @@ void AEmpathCharacter::Die()
 		}
 
 		// Signal notifies
-		ReceiveDie();
-		OnDeath.Broadcast();
+		ReceiveDie(DeathInstigator, DeathCauser, DeathDamageType);
+		OnDeath.Broadcast(DeathInstigator, DeathCauser, DeathDamageType);
 	}
 }
 
-void AEmpathCharacter::ReceiveDie_Implementation()
+void AEmpathCharacter::ReceiveDie_Implementation(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
 	SetLifeSpan(0.001f);
 }
@@ -242,7 +242,7 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	if (ActualDamage >= 0.f)
 	{
 		// Process damage to update health and death state
-		ProcessFinalDamage(ActualDamage, DamageTypeCDO);
+		ProcessFinalDamage(ActualDamage, DamageTypeCDO, EventInstigator, DamageCauser);
 
 		// If hit our mesh, do physics impulses as appropriate
 		USkeletalMeshComponent* const MyMesh = GetMesh();
@@ -308,13 +308,13 @@ float AEmpathCharacter::ModifyRadialDamage_Implementation(float DamageAmount, co
 	return DamageAmount;
 }
 
-void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmount, const UDamageType* DamageType)
+void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmount, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Decrement health and check for death
 	CurrentHealth -= DamageAmount;
 	if (CurrentHealth <= 0.0f && CanDie())
 	{
-		Die();
+		Die(EventInstigator, DamageCauser, DamageType);
 		return;
 	}
 

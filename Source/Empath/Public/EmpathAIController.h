@@ -229,11 +229,11 @@ public:
 	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "OnAttackTargetTeleported"))
 	void ReceiveAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
 
-	void OnCharacterDeath();
+	void OnCharacterDeath(const AController* DeathInstigator = nullptr, const AActor* DeathCauser = nullptr, const UDamageType* DeathDamageType = nullptr);
 
 	/** Called when the controlled character dies. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterDeath"))
-	void ReceiveCharacterDeath();
+	void ReceiveCharacterDeath(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	// ---------------------------------------------------------
 	//	State flow / Commands
