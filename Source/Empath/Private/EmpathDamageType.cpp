@@ -8,8 +8,8 @@ UEmpathDamageType::UEmpathDamageType()
 	StunDamageMultiplier = 1.0f;
 	FriendlyFireDamageMultiplier = 1.0f;
 	bAutoStun = false;
-	DeathImpulseHorziontal = 800.0f;
-	DeathImpulsVertical = 800.0f;
+	DeathImpulse = 800.0f;
+	DeathImpulseUpkick = 800.0f;
 	bIgnorePerBoneDamageScaling = false;
 }
 

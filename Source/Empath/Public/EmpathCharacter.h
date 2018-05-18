@@ -8,12 +8,16 @@
 #include "GameFramework/Character.h"
 #include "EmpathCharacter.generated.h"
 
+// Stat groups for UE Profiler
+DECLARE_STATS_GROUP(TEXT("EmpathCharacter"), STATGROUP_EMPATH_Character, STATCAT_Advanced);
+
 class AEmpathAIController;
 class UDamageType;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCharacterDeathDelegate, const AController*, DeathInstigator, const AActor*, DeathCauser, const UDamageType*, DeathDamageType);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterStunnedDelegate, float, StunDuration);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FOnCharacterDeathDelegate, FHitResult const&, KillingHitInfo, FVector, KillingHitImpulseDir, const AController*, DeathInstigator, const AActor*, DeathCauser, const UDamageType*, DeathDamageType);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCharacterStunnedDelegate, const AController*, StunInstigator, const AActor*, StunCauser, const float, StunDuration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterStunEndDelegate);
+
 
 UCLASS()
 class EMPATH_API AEmpathCharacter : public ACharacter, public IEmpathTeamAgentInterface
@@ -74,11 +78,11 @@ public:
 
 	/** Called when character's health depletes to 0. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Health")
-	void Die(const AController* DeathInstigator = nullptr, const AActor* DeathCauser = nullptr, const UDamageType* DeathDamageType = nullptr);
+	void Die(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when character's health depletes to 0. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health", meta = (DisplayName = "Die"))
-	void ReceiveDie(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
+	void ReceiveDie(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when character's health depletes to 0. */
 	UPROPERTY(BlueprintAssignable, Category = "Empath|Health")
@@ -86,13 +90,13 @@ public:
 
 	/** Called when character becomes stunned. If StunDuration <= 0, then stun must be removed by EndStun(). */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
-	void BeStunned(float StunDuration = 3.0);
+	void BeStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration = 3.0);
 
 	FTimerHandle StunTimerHandle;
 
 	/** Called when character becomes stunned. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "BeStunned"))
-	void ReceiveStunned(float StunDuration);
+	void ReceiveStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration);
 
 	/** Called when character becomes stunned. */
 	UPROPERTY(BlueprintAssignable, Category = "Empath|Combat")
@@ -133,22 +137,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float StunDamageThreshold;
 
-	/** How much stun damage the character has accrued in the StunTimeThreshold. */
-	UPROPERTY(BlueprintReadWrite, Category = "Empath|Combat")
-	float StunDamage;
-
 	/** How long a stun lasts by default. */
-	UPROPERTY(BlueprintReadWrite, Category = "Empath|Combat")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float StunDurationDefault;
 
 	/** History of stun damage that has been applied to this character. */
 	TArray<FDamageHistoryEvent, TInlineAllocator<16>> StunDamageHistory;
 
 	/** Checks whether we should become stunned */
-	virtual void TakeStunDamage(float StunDamage);
+	virtual void TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser);
+
+	/** Orders the character's skeletal mesh to begin ragdollizing. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
+	void StartRagdoll();
 
 	// ---------------------------------------------------------
-	//	Health
+	//	Health and damage
 
 	/** The maximum health of the character. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
@@ -165,6 +169,28 @@ public:
 	/** Whether this character can take damage from friendly fire. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
 	bool bCanTakeFriendlyFire;
+
+	/** Whether this character should receive physics impulses from damage. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
+	bool bAllowDamageImpulse;
+
+	/** Whether this character should receive physics impulses upon death. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
+	bool bAllowDeathImpulse;
+
+	/** Whether this character should ragdoll on death. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
+	bool bShouldRagdollOnDeath;
+
+	/** How long we should wait after death to clean up / remove the actor from the world. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
+	float CleanUpPostDeathTime;
+
+	FTimerHandle CleanUpPostDeathTimerHandle;
+
+	/** Cleans up / removes dead actor from the world. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Health")
+	void CleanUpPostDeath();
 
 	/** Allows us to define weak and strong spots on the character by inflicting different amounts of damage depending on the bone that was hit. */
 	UPROPERTY(EditDefaultsOnly, Category = "Empath|Health")
@@ -186,9 +212,9 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health")
 	float ModifyRadialDamage(float DamageAmount, const FVector& Origin, const TArray<struct FHitResult>& ComponentHits, float InnerRadius, float OuterRadius, const AController* EventInstigator, const AActor* DamageCauser, const UDamageType* DamageTypeCDO);
 
-	/** Processes final damage after all calculations are complete. */
+	/** Processes final damage after all calculations are complete. Includes signaling stun damage and death events. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health")
-	void ProcessFinalDamage(const float DamageAmount, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser);
+	void ProcessFinalDamage(const float DamageAmount, FHitResult const& HitInfo, FVector HitImpulseDir, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser);
 
 protected:
 

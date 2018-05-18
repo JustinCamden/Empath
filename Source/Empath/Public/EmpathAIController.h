@@ -229,11 +229,19 @@ public:
 	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "OnAttackTargetTeleported"))
 	void ReceiveAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
 
-	void OnCharacterDeath(const AController* DeathInstigator = nullptr, const AActor* DeathCauser = nullptr, const UDamageType* DeathDamageType = nullptr);
+	void OnCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the controlled character dies. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterDeath"))
-	void ReceiveCharacterDeath(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
+	void ReceiveCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
+
+	/** Called when the controlled character becomes stunned. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterStunned"))
+	void ReceiveCharacterStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration);
+
+	/** Called when the controlled character is no longer stunned. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterStunEnd"))
+	void ReceiveCharacterStunEnd();
 
 	// ---------------------------------------------------------
 	//	State flow / Commands

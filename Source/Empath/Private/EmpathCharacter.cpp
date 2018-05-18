@@ -6,6 +6,8 @@
 #include "EmpathDamageType.h"
 #include "EmpathFunctionLibrary.h"
 
+// Stats for UE Profiler
+DECLARE_CYCLE_STAT(TEXT("TakeDamage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
 
 // Sets default values
 AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
@@ -20,10 +22,14 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 	DefaultTeam = EEmpathTeam::Enemy;
 	bStunnable = true;
 	bInvincible = false;
+	bAllowDamageImpulse = true;
+	bAllowDeathImpulse = true;
+	bShouldRagdollOnDeath = true;
 	bCanTakeFriendlyFire = false;
 	StunDamageThreshold = 50.0f;
 	StunTimeThreshold = 0.5f;
 	StunDurationDefault = 3.0f;
+	CleanUpPostDeathTime = 0.5f;
 }
 
 // Called when the game starts or when spawned
@@ -41,7 +47,7 @@ void AEmpathCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		AEmpathAIController* EmpathAICon = GetEmpathAICon();
 		if (EmpathAICon)
 		{
-			EmpathAICon->OnCharacterDeath();
+			EmpathAICon->OnCharacterDeath(FHitResult(), FVector::ZeroVector, nullptr, nullptr, nullptr);
 		}
 	}
 	Super::EndPlay(EndPlayReason);
@@ -83,29 +89,102 @@ bool AEmpathCharacter::CanDie_Implementation()
 	return (!bInvincible && !bDead);
 }
 
-void AEmpathCharacter::Die(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
+void AEmpathCharacter::Die(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
 	if (CanDie())
 	{
 		// Update variables
 		bDead = true;
 
+		// End stunned state flow
+		if (bStunned)
+		{
+			EndStun();
+		}
+		else
+		{
+			GetWorldTimerManager().ClearTimer(StunTimerHandle);
+		}
+
 		// Signal AI controller
 		AEmpathAIController* EmpathAICon = GetEmpathAICon();
 		if (EmpathAICon)
 		{
-			EmpathAICon->OnCharacterDeath();
+			EmpathAICon->OnCharacterDeath(KillingHitInfo, KillingHitImpulseDir, DeathInstigator, DeathCauser, DeathDamageType);
 		}
 
 		// Signal notifies
-		ReceiveDie(DeathInstigator, DeathCauser, DeathDamageType);
-		OnDeath.Broadcast(DeathInstigator, DeathCauser, DeathDamageType);
+		ReceiveDie(KillingHitInfo, KillingHitImpulseDir, DeathInstigator, DeathCauser, DeathDamageType);
+		OnDeath.Broadcast(KillingHitInfo, KillingHitImpulseDir, DeathInstigator, DeathCauser, DeathDamageType);
 	}
 }
 
-void AEmpathCharacter::ReceiveDie_Implementation(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
+void AEmpathCharacter::ReceiveDie_Implementation(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* KillingDamageType)
 {
+	if (bDead)
+	{
+		GetWorldTimerManager().SetTimer(CleanUpPostDeathTimerHandle, this, &AEmpathCharacter::CleanUpPostDeath, CleanUpPostDeathTime, false);
+	}
+
+	// Begin ragdolling if appropriate
+	if (bShouldRagdollOnDeath)
+	{
+		USkeletalMeshComponent* const MyMesh = GetMesh();
+		if (MyMesh)
+		{
+			StartRagdoll();
+			UEmpathDamageType const* EmpathDamageTypeCDO = Cast<UEmpathDamageType>(KillingDamageType);
+
+			// Apply an additional death impulse if appropriate
+			if (bAllowDeathImpulse && EmpathDamageTypeCDO)
+			{
+				// If a default hit was passed in, fill in some assumed data
+				FHitResult RealKillingHitInfo = KillingHitInfo;
+				if ((RealKillingHitInfo.ImpactPoint == RealKillingHitInfo.Location) && (RealKillingHitInfo.ImpactPoint == FVector::ZeroVector))
+				{
+					RealKillingHitInfo.ImpactPoint = GetActorLocation();
+					RealKillingHitInfo.Location = RealKillingHitInfo.ImpactPoint;
+				}
+
+				// Actually apply the death impulse
+				float const DeathImpulse = (EmpathDamageTypeCDO->DeathImpulse >= 0.f) ? EmpathDamageTypeCDO->DeathImpulse : 0.0f;
+				FVector const Impulse = KillingHitImpulseDir * DeathImpulse + FVector(0, 0, EmpathDamageTypeCDO->DeathImpulseUpkick);
+				UEmpathFunctionLibrary::AddDistributedImpulseAtLocation(MyMesh, Impulse, KillingHitInfo.ImpactPoint, KillingHitInfo.BoneName, 0.5f);
+			}
+		}
+	}
+}
+
+void AEmpathCharacter::CleanUpPostDeath_Implementation()
+{
+	GetWorldTimerManager().ClearTimer(CleanUpPostDeathTimerHandle);
 	SetLifeSpan(0.001f);
+}
+
+void AEmpathCharacter::StartRagdoll()
+{
+	USkeletalMeshComponent* const MyMesh = GetMesh();
+	if (MyMesh)
+	{
+		//SetCharacterPhysicsState(EOdinCharacterPhysicsState::FullRagdoll);
+		//MyMesh->SetCollisionProfileName(FOdinCollisionrProfileNames::CollisionProfileName_Ragdoll);
+
+		//// set to ignore all interactions rather than turning off collision, since there's a good chance we will get back up and 
+		//// physics state would have to be recreated again.
+		//GetCapsuleComponent()->SetCollisionProfileName(FOdinCollisionrProfileNames::CollisionProfileName_CapsuleWhileRagdolled);
+		//bRagdoll = true;
+
+		//// start timer for getting back up
+		//if (bDead == false && bDying == false)
+		//{
+		//	ResumeAutomaticRecoverFromRagdoll();
+		//}
+		//else
+		//{
+		//	StopAutomaticRecoverFromRagdoll();
+		//	bDeferredGetUpFromRagdoll = false;
+		//}
+	}
 }
 
 EEmpathTeam AEmpathCharacter::GetTeamNum_Implementation() const
@@ -125,18 +204,23 @@ bool AEmpathCharacter::CanBeStunned_Implementation()
 	return (bStunnable && !bDead && !bStunned);
 }
 
-void AEmpathCharacter::BeStunned(float StunDuration)
+void AEmpathCharacter::BeStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration)
 {
 	if (CanBeStunned())
 	{
-		ReceiveStunned(StunDuration);
-		OnStunned.Broadcast(StunDuration);
+		bStunned = true;
+		ReceiveStunned(StunInstigator, StunCauser, StunDuration);
+		AEmpathAIController* EmpathAICon = GetEmpathAICon();
+		if (EmpathAICon)
+		{
+			EmpathAICon->ReceiveCharacterStunned(StunInstigator, StunCauser, StunDuration);
+		}
+		OnStunned.Broadcast(StunInstigator, StunCauser, StunDuration);
 	}
 }
 
-void AEmpathCharacter::ReceiveStunned_Implementation(float StunDuration)
+void AEmpathCharacter::ReceiveStunned_Implementation(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration)
 {
-	bStunned = true;
 	GetWorldTimerManager().ClearTimer(StunTimerHandle);
 	if (StunDuration > 0.0f)
 	{
@@ -148,19 +232,32 @@ void AEmpathCharacter::EndStun()
 {
 	if (bStunned)
 	{
+		// Update variables
+		bStunned = false;
+		GetWorldTimerManager().ClearTimer(StunTimerHandle);
+		StunDamageHistory.Empty();
+
+		// Broadcast events and notifies
 		ReceiveStunEnd();
+		AEmpathAIController* EmpathAICon = GetEmpathAICon();
+		if (EmpathAICon)
+		{
+			EmpathAICon->ReceiveCharacterStunEnd();
+		}
 		OnStunEnd.Broadcast();
 	}
 }
 
 void AEmpathCharacter::ReceiveStunEnd_Implementation()
 {
-	bStunned = false;
-	StunDamage = 0.0f;
+	return;
 }
 
 float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+	// Scope these functions for the UE4 profiler
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_TakeDamage);
+
 	// If we're invincible, dead, or this is no damage, do nothing
 	if (bInvincible || bDead || DamageAmount <= 0.0f)
 	{
@@ -192,11 +289,20 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 		}
 	}
 
+	// Setup variables for hit direction and info
+	FVector HitImpulseDir;
+	FHitResult HitInfo;
+	DamageEvent.GetBestHitInfo(this, (EventInstigator ? EventInstigator->GetPawn() : DamageCauser), HitInfo, HitImpulseDir);
+
 	// Process point damage
 	if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
 	{
 		// Point damage event, pass off to helper function
 		FPointDamageEvent* const PointDamageEvent = (FPointDamageEvent*)&DamageEvent;
+
+		// Update hit info
+		HitInfo = PointDamageEvent->HitInfo;
+		HitImpulseDir = PointDamageEvent->ShotDirection;
 
 		// Adjust the damage according to our per bone damage scale
 		if ((EmpathDamageTypeCDO == nullptr) || (EmpathDamageTypeCDO->bIgnorePerBoneDamageScaling == false))
@@ -217,6 +323,9 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 		// Radial damage event, pass off to helper function
 		FRadialDamageEvent* const RadialDamageEvent = (FRadialDamageEvent*)&DamageEvent;
 
+		// Get best hit info we can under the circumstances
+		DamageEvent.GetBestHitInfo(this, (EventInstigator ? EventInstigator->GetPawn() : DamageCauser), HitInfo, HitImpulseDir);
+
 		// Allow modification of any damage amount in children or blueprint classes
 		AdjustedDamage = ModifyAnyDamage(AdjustedDamage, EventInstigator, DamageCauser, DamageTypeCDO);
 
@@ -225,6 +334,9 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	}
 	else
 	{
+		// Get best hit info we can under the circumstances
+		DamageEvent.GetBestHitInfo(this, (EventInstigator ? EventInstigator->GetPawn() : DamageCauser), HitInfo, HitImpulseDir);
+
 		// Allow modification of any damage amount in children or blueprint classes
 		AdjustedDamage = ModifyAnyDamage(AdjustedDamage, EventInstigator, DamageCauser, DamageTypeCDO);
 	}
@@ -242,11 +354,11 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	if (ActualDamage >= 0.f)
 	{
 		// Process damage to update health and death state
-		ProcessFinalDamage(ActualDamage, DamageTypeCDO, EventInstigator, DamageCauser);
+		ProcessFinalDamage(ActualDamage, HitInfo, HitImpulseDir, DamageTypeCDO, EventInstigator, DamageCauser);
 
-		// If hit our mesh, do physics impulses as appropriate
+		// Do physics impulses as appropriate
 		USkeletalMeshComponent* const MyMesh = GetMesh();
-		if (MyMesh && DamageTypeCDO)
+		if (MyMesh && DamageTypeCDO && bAllowDamageImpulse)
 		{
 			// If point damage event, add an impulse at the location we were hit
 			if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
@@ -308,13 +420,13 @@ float AEmpathCharacter::ModifyRadialDamage_Implementation(float DamageAmount, co
 	return DamageAmount;
 }
 
-void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmount, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser)
+void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmount, FHitResult const& HitInfo, FVector HitImpulseDir, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Decrement health and check for death
 	CurrentHealth -= DamageAmount;
 	if (CurrentHealth <= 0.0f && CanDie())
 	{
-		Die(EventInstigator, DamageCauser, DamageType);
+		Die(HitInfo, HitImpulseDir, EventInstigator, DamageCauser, DamageType);
 		return;
 	}
 
@@ -328,25 +440,25 @@ void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmoun
 			// If this damage automatically stuns, then become stunned
 			if (EmpathDamageTyeCDO->bAutoStun)
 			{
-				BeStunned(StunDurationDefault);
+				BeStunned(EventInstigator, DamageCauser, StunDurationDefault);
 			}
 			// Otherwise, log the stun damage and check for being stunned
 			else if (EmpathDamageTyeCDO->StunDamageMultiplier > 0.0f)
 			{
-				TakeStunDamage(EmpathDamageTyeCDO->StunDamageMultiplier * DamageAmount);
+				TakeStunDamage(EmpathDamageTyeCDO->StunDamageMultiplier * DamageAmount, EventInstigator, DamageCauser);
 			}
 		}
 		else
 		{
 			// Default implementation for if we weren't passed an Empath damage type
-			TakeStunDamage(DamageAmount);
+			TakeStunDamage(DamageAmount, EventInstigator, DamageCauser);
 		}
 	}
 
 	return;
 }
 
-void AEmpathCharacter::TakeStunDamage(float StunDamageAmount)
+void AEmpathCharacter::TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Log stun event
 	UWorld* const World = GetWorld();
@@ -385,8 +497,8 @@ void AEmpathCharacter::TakeStunDamage(float StunDamageAmount)
 		AccumulatedDamage += DHE.DamageAmount;
 		if (AccumulatedDamage > StunDamageThreshold)
 		{
-			BeStunned(StunDurationDefault);
-		break;
+			BeStunned(EventInstigator, DamageCauser, StunDurationDefault);
+			break;
 		}
 	}
 }

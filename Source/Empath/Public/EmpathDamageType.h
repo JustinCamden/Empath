@@ -33,11 +33,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	bool bAutoStun;
 	
-	/** How much of a horizontal we should apply to a character on death, in the world XY direction. */
+	/** How much of an we should apply to a character on death, in the direction of the killing hit. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float DeathImpulseHorziontal;
+	float DeathImpulse;
 
-	/** How much of an upward impulse we should apply to a character on death, in the world Z direction. */
+	/** How much of an additional upward impulse we should apply to a character on death, in the world Z direction. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	float DeathImpulsVertical;
+	float DeathImpulseUpkick;
 };

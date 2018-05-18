@@ -1196,7 +1196,7 @@ int32 AEmpathAIController::GetNumAIsNearby(float Radius) const
 	return Count;
 }
 
-void AEmpathAIController::OnCharacterDeath(const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
+void AEmpathAIController::OnCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
 	// Remove ourselves from the AI manager
 	UnregisterAIManager();
@@ -1204,8 +1204,15 @@ void AEmpathAIController::OnCharacterDeath(const AController* DeathInstigator, c
 	// Clear our attack target
 	SetAttackTarget(nullptr);
 
+	// Turn off behavior tree
+	UBrainComponent* const Brain = GetBrainComponent();
+	if (Brain)
+	{
+		Brain->StopLogic(TEXT("Pawn Died"));
+	}
+
 	// Fire notifies
-	ReceiveCharacterDeath(DeathInstigator, DeathCauser, DeathDamageType);
+	ReceiveCharacterDeath(KillingHitInfo, KillingHitImpulseDir, DeathInstigator, DeathCauser, DeathDamageType);
 }
 
 void AEmpathAIController::UnregisterAIManager()
