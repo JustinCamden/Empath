@@ -427,7 +427,7 @@ FVector AEmpathAIController::GetAimLocation() const
 		AEmpathVRCharacter* VRCharacterTarget = Cast<AEmpathVRCharacter>(AttackTarget);
 		if (!(VRCharacterTarget && VRCharacterTarget->IsTeleporting()))
 		{
-			return UEmpathFunctionLibrary::GetAimLocationOnActor(AttackTarget, GetPawn()->GetActorLocation());
+			return UEmpathFunctionLibrary::GetAimLocationOnActor(AttackTarget);
 		}
 	}
 
@@ -719,7 +719,7 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 
 		// Trace to where we are trying to aim
 		FVector const TraceStart = ViewLoc;
-		FVector const TraceEnd = UEmpathFunctionLibrary::GetAimLocationOnActor(AttackTarget, ViewLoc);
+		FVector const TraceEnd = UEmpathFunctionLibrary::GetAimLocationOnActor(AttackTarget);
 
 		// Check whether the target's location is known or may be lost
 		bool const bAlreadyKnowsTargetLoc = AIManager->IsTargetLocationKnown(AttackTarget);

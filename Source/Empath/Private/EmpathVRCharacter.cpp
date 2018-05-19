@@ -49,7 +49,7 @@ void AEmpathVRCharacter::Die()
 	bDead = true;
 }
 
-FVector AEmpathVRCharacter::GetCustomAimLocation_Implementation(FVector LookOrigin) const
+FVector AEmpathVRCharacter::GetCustomAimLocationOnActor_Implementation(FVector LookOrigin) const
 {
 	return GetVRLocation();
 }

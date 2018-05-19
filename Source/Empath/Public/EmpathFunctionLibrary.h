@@ -17,9 +17,11 @@ class EMPATH_API UEmpathFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 public:
-	/** Gets the aim location of an actor (or its pawn if it is a controller). First checks for Aim Location interface, then calls GetCenterMassLocation. */
+	/** Gets the aim location of an actor (or its pawn if it is a controller). 
+	First checks for Aim Location interface, then calls GetCenterMassLocation. 
+	Look direction is used with the interface when multiple aim locations are possible. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
-	static const FVector GetAimLocationOnActor(const AActor* Actor, FVector LookOrigin);
+	static const FVector GetAimLocationOnActor(const AActor* Actor, FVector LookDirection = FVector::ZeroVector);
 
 	/** Gets the center mass location of an Actor, or the VR Location if it is a VR Character. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")

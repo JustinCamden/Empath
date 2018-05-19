@@ -31,7 +31,7 @@ public:
 
 	/** Returns the team number of the actor */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Team")
-	FVector GetCustomAimLocation(FVector LookOrigin) const;
+	FVector GetCustomAimLocationOnActor(FVector LookOrigin) const;
 
 	AEmpathVRCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 

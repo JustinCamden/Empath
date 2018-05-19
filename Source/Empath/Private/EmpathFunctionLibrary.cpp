@@ -9,19 +9,19 @@
 static const float MaxImpulsePerMass = 5000.f;
 static const float MaxPointImpulseMag = 120000.f;
 
-const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(const AActor* Actor, FVector LookOrigin)
+const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(const AActor* Actor, FVector LookDirection)
 {
 	// First, check for the aim location interface
 	if (Actor->GetClass()->ImplementsInterface(UEmpathAimLocationInterface::StaticClass()))
 	{
-		return IEmpathAimLocationInterface::Execute_GetCustomAimLocation(Actor, LookOrigin);
+		return IEmpathAimLocationInterface::Execute_GetCustomAimLocationOnActor(Actor, LookDirection);
 	}
 
 	// Nect, check if the object as a controller. If so, call this function in its pawn instead.
 	const AController* ControllerTarget = Cast<AController>(Actor);
 	if (ControllerTarget && ControllerTarget->GetPawn())
 	{
-		return GetAimLocationOnActor(ControllerTarget->GetPawn(), LookOrigin);
+		return GetAimLocationOnActor(ControllerTarget->GetPawn(), LookDirection);
 	}
 	
 	return GetCenterMassLocationOnActor(Actor);

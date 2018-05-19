@@ -5,6 +5,7 @@
 #include "EmpathAIController.h"
 #include "EmpathDamageType.h"
 #include "EmpathFunctionLibrary.h"
+#include "EmpathAIManager.h"
 
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("TakeDamage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
@@ -247,6 +248,27 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	{
 		return 0.0f;
 	}
+
+	// If the player inflicted this damage, and the player's location was previous unknown,
+	// alert us to their location
+	AEmpathVRCharacter* Player = Cast<AEmpathVRCharacter>(DamageCauser);
+	if (!Player && EventInstigator)
+	{
+		Player = Cast<AEmpathVRCharacter>(EventInstigator->GetPawn());
+	}
+	if (Player)
+	{
+		AEmpathAIController* AICon = GetEmpathAICon();
+		if (AICon)
+		{
+			AEmpathAIManager* AIManager = AICon->GetAIManager();
+			if (AIManager && AIManager->IsPlayerPotentiallyLost())
+			{
+				AIManager->UpdateKnownTargetLocation(Player);
+			}
+		}
+	}
+
 
 	// Cache the inital damage amount
 	float AdjustedDamage = DamageAmount;
