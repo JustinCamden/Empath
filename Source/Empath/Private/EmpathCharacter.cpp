@@ -6,37 +6,101 @@
 #include "EmpathDamageType.h"
 #include "EmpathFunctionLibrary.h"
 #include "EmpathAIManager.h"
+#include "PhysicsEngine/PhysicalAnimationComponent.h"
+
 
 // Stats for UE Profiler
-DECLARE_CYCLE_STAT(TEXT("TakeDamage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
+DECLARE_CYCLE_STAT(TEXT("Empath Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
+DECLARE_CYCLE_STAT(TEXT("Empath Is Ragdoll At Rest Check"), STAT_EMPATH_IsRagdollAtRest, STATGROUP_EMPATH_Character);
+
+const FName AEmpathCharacter::MeshCollisionProfileName(TEXT("CharacterMesh"));
+const FName AEmpathCharacter::PhysicalAnimationComponentName(TEXT("PhysicalAnimationComponent"));
+const float AEmpathCharacter::RagdollCheckTimeMin = 0.25;
+const float AEmpathCharacter::RagdollCheckTimeMax = 0.75;
+const float AEmpathCharacter::RagdollRestThreshold_SingleBodyMax = 150.f;
+const float AEmpathCharacter::RagdollRestThreshold_AverageBodyMax = 75.f;
 
 // Sets default values
 AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 	:Super(ObjectInitializer)
 {
+	// Enable tick events on this character
 	PrimaryActorTick.bCanEverTick = true;
 
+	// Set default variables
 	MaxHealth = 100.0f;
 	CurrentHealth = MaxHealth;
 	MaxEffectiveDistance = 250.0f;
 	MinEffectiveDistance = 0.0f;
 	DefaultTeam = EEmpathTeam::Enemy;
-	bStunnable = true;
 	bInvincible = false;
 	bAllowDamageImpulse = true;
 	bAllowDeathImpulse = true;
 	bShouldRagdollOnDeath = true;
 	bCanTakeFriendlyFire = false;
+	bAllowRagdoll = true;
+	bStunnable = true;
 	StunDamageThreshold = 50.0f;
 	StunTimeThreshold = 0.5f;
 	StunDurationDefault = 3.0f;
-	CleanUpPostDeathTime = 0.5f;
+	StunImmunityTimeAfterStunRecovery = 3.0f;
+	CurrentCharacterPhysicsState = EEmpathCharacterPhysicsState::Kinematic;
+
+	// Set default physics states
+	FEmpathCharPhysicsStateSettingsEntry Entry;
+
+	Entry.PhysicsState = EEmpathCharacterPhysicsState::Kinematic;
+	PhysicsSettingsEntries.Add(Entry);
+
+	Entry.PhysicsState = EEmpathCharacterPhysicsState::FullRagdoll;
+	Entry.Settings.bSimulatePhysics = true;
+	Entry.Settings.bEnableGravity = true;
+	PhysicsSettingsEntries.Add(Entry);
+
+	Entry.PhysicsState = EEmpathCharacterPhysicsState::HitReact;
+	Entry.Settings.bEnableGravity = false;
+	PhysicsSettingsEntries.Add(Entry);
+
+	Entry.PhysicsState = EEmpathCharacterPhysicsState::PlayerHittable;
+	PhysicsSettingsEntries.Add(Entry);
+
+	Entry.PhysicsState = EEmpathCharacterPhysicsState::GettingUp;
+	PhysicsSettingsEntries.Add(Entry);
+	
+
+	// Setup components
+	// Mesh
+	GetMesh()->SetCollisionProfileName(AEmpathCharacter::MeshCollisionProfileName);
+	GetMesh()->bSingleSampleShadowFromStationaryLights = true;
+	GetMesh()->bGenerateOverlapEvents = false;
+	GetMesh()->MeshComponentUpdateFlag = EMeshComponentUpdateFlag::AlwaysTickPoseAndRefreshBones;
+	GetMesh()->bApplyImpulseOnDamage = false;
+	GetMesh()->SetEnableGravity(false);
+	GetMesh()->SetSimulatePhysics(false);
+
+	// Physical animation component
+	PhysicalAnimation = CreateDefaultSubobject<UPhysicalAnimationComponent>(AEmpathCharacter::PhysicalAnimationComponentName);
+
+	// Movement
+	GetCharacterMovement()->bAlwaysCheckFloor = false;
 }
 
 // Called when the game starts or when spawned
 void AEmpathCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Set reference for physical animation component
+	if (PhysicalAnimation)
+	{
+		PhysicalAnimation->SetSkeletalMeshComponent(GetMesh());
+	}
+
+	// Set up Physics settings map for faster lookups
+	for (FEmpathCharPhysicsStateSettingsEntry const& Entry : PhysicsSettingsEntries)
+	{
+		PhysicsStateToSettingsMap.Add(Entry.PhysicsState, Entry.Settings);
+	}
 }
 
 void AEmpathCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -67,6 +131,14 @@ AEmpathAIController* AEmpathCharacter::GetEmpathAICon()
 void AEmpathCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// We check for the get up from ragdoll signal on tick because timers execute post-physics, 
+	// and the component repositioning during getup causes visual pops
+	if (bDeferredGetUpFromRagdoll)
+	{
+		bDeferredGetUpFromRagdoll = false;
+		StartRecoverFromRagdoll();
+	}
 }
 
 float AEmpathCharacter::GetDistanceToVR(const AActor* OtherActor) const
@@ -122,10 +194,9 @@ void AEmpathCharacter::Die(FHitResult const& KillingHitInfo, FVector KillingHitI
 
 void AEmpathCharacter::ReceiveDie_Implementation(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* KillingDamageType)
 {
-	if (bDead)
-	{
-		GetWorldTimerManager().SetTimer(CleanUpPostDeathTimerHandle, this, &AEmpathCharacter::CleanUpPostDeath, CleanUpPostDeathTime, false);
-	}
+	// Set clean up timer
+	GetWorldTimerManager().SetTimer(CleanUpPostDeathTimerHandle, this, &AEmpathCharacter::CleanUpPostDeath, CleanUpPostDeathTime, false);
+	
 
 	// Begin ragdolling if appropriate
 	if (bShouldRagdollOnDeath)
@@ -137,7 +208,7 @@ void AEmpathCharacter::ReceiveDie_Implementation(FHitResult const& KillingHitInf
 			UEmpathDamageType const* EmpathDamageTypeCDO = Cast<UEmpathDamageType>(KillingDamageType);
 
 			// Apply an additional death impulse if appropriate
-			if (bAllowDeathImpulse && EmpathDamageTypeCDO)
+			if (bAllowDeathImpulse && EmpathDamageTypeCDO && MyMesh->IsSimulatingPhysics())
 			{
 				// If a default hit was passed in, fill in some assumed data
 				FHitResult RealKillingHitInfo = KillingHitInfo;
@@ -162,15 +233,6 @@ void AEmpathCharacter::CleanUpPostDeath_Implementation()
 	SetLifeSpan(0.001f);
 }
 
-void AEmpathCharacter::StartRagdoll()
-{
-	USkeletalMeshComponent* const MyMesh = GetMesh();
-	if (MyMesh)
-	{
-		// TODO: Hook this up with a physics state manager that ideally will also allow grabbing and throwing
-		MyMesh->SetSimulatePhysics(true);
-	}
-}
 
 EEmpathTeam AEmpathCharacter::GetTeamNum_Implementation() const
 {
@@ -186,7 +248,11 @@ EEmpathTeam AEmpathCharacter::GetTeamNum_Implementation() const
 
 bool AEmpathCharacter::CanBeStunned_Implementation()
 {
-	return (bStunnable && !bDead && !bStunned);
+	return (bStunnable 
+		&& !bDead 
+		&& !bStunned 
+		&& GetWorld()->TimeSince(LastStunTime) > StunImmunityTimeAfterStunRecovery
+		&& !bRagdolling);
 }
 
 void AEmpathCharacter::BeStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration)
@@ -195,6 +261,7 @@ void AEmpathCharacter::BeStunned(const AController* StunInstigator, const AActor
 	{
 		bStunned = true;
 		ReceiveStunned(StunInstigator, StunCauser, StunDuration);
+		LastStunTime = GetWorld()->GetTimeSeconds();
 		AEmpathAIController* EmpathAICon = GetEmpathAICon();
 		if (EmpathAICon)
 		{
@@ -436,20 +503,15 @@ void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmoun
 		return;
 	}
 
-	// If we didn't die, and we can be stunned, check for stun damage
+	// If we didn't die, and we can be stunned, log stun damage
 	if (CanBeStunned())
 	{
 		UWorld* const World = GetWorld();
 		const UEmpathDamageType* EmpathDamageTyeCDO = Cast<UEmpathDamageType>(DamageType);
 		if (EmpathDamageTyeCDO && World)
 		{
-			// If this damage automatically stuns, then become stunned
-			if (EmpathDamageTyeCDO->bAutoStun)
-			{
-				BeStunned(EventInstigator, DamageCauser, StunDurationDefault);
-			}
-			// Otherwise, log the stun damage and check for being stunned
-			else if (EmpathDamageTyeCDO->StunDamageMultiplier > 0.0f)
+			// Log the stun damage and check for being stunned
+			if (EmpathDamageTyeCDO->StunDamageMultiplier > 0.0f)
 			{
 				TakeStunDamage(EmpathDamageTyeCDO->StunDamageMultiplier * DamageAmount, EventInstigator, DamageCauser);
 			}
@@ -506,5 +568,242 @@ void AEmpathCharacter::TakeStunDamage(const float StunDamageAmount, const AContr
 			BeStunned(EventInstigator, DamageCauser, StunDurationDefault);
 			break;
 		}
+	}
+}
+
+bool AEmpathCharacter::SetCharacterPhysicsState(EEmpathCharacterPhysicsState NewState)
+{
+	if (NewState != CurrentCharacterPhysicsState)
+	{
+		// Notify state end
+		ReceiveEndCharacterPhysicsState(CurrentCharacterPhysicsState);
+
+		FEmpathCharPhysicsStateSettings NewSettings;
+
+		// Look up new state settings
+		{
+			FEmpathCharPhysicsStateSettings* FoundNewSettings = PhysicsStateToSettingsMap.Find(NewState);
+			if (FoundNewSettings)
+			{
+				NewSettings = *FoundNewSettings;
+			}
+			else
+			{
+				// Log error.
+				FName EnumName;
+				const UEnum* EnumPtr = FindObject<UEnum>(ANY_PACKAGE, TEXT("EEmpathCharacterPhysicsState"), true);
+				if (EnumPtr)
+				{
+					EnumName = EnumPtr->GetNameByValue((int64)NewState);
+				}
+				else
+				{
+					EnumName = "Invalid Entry";
+				}
+				UE_LOG(LogTemp, Warning, TEXT("%s ERROR: Could not find new physics state settings %s!"), *GetName(), *EnumName.ToString());
+				return false;
+			}
+		}
+
+		USkeletalMeshComponent* const MyMesh = GetMesh();
+
+		// Set simulate physics
+		if (NewSettings.bSimulatePhysics == false)
+		{
+			MyMesh->SetSimulatePhysics(false);
+		}
+		else
+		{
+			if (NewSettings.SimulatePhysicsBodyBelowName != NAME_None)
+			{
+				// We need to set false first since the SetAllBodiesBelow call below doesn't affect bodies above.
+				// so we want to ensure they are in the default state
+				MyMesh->SetSimulatePhysics(false);
+				MyMesh->SetAllBodiesBelowSimulatePhysics(NewSettings.SimulatePhysicsBodyBelowName, true, true);
+			}
+			else
+			{
+				MyMesh->SetSimulatePhysics(true);
+			}
+		}
+
+		// Set gravity
+		MyMesh->SetEnableGravity(NewSettings.bEnableGravity);
+
+		// Set physical animation
+		PhysicalAnimation->ApplyPhysicalAnimationProfileBelow(NewSettings.PhysicalAnimationBodyName, NewSettings.PhysicalAnimationProfileName, true, true);
+
+		// Set constraint profile
+		if (NewSettings.ConstraintProfileJointName == NAME_None)
+		{
+			MyMesh->SetConstraintProfileForAll(NewSettings.ConstraintProfileName, true);
+		}
+		else
+		{
+			MyMesh->SetConstraintProfile(NewSettings.ConstraintProfileJointName, NewSettings.ConstraintProfileName, true);
+		}
+
+		// Update state and signal notifies
+		CurrentCharacterPhysicsState = NewState;
+		ReceiveBeginCharacterPhysicsState(NewState);
+	}
+
+	return true;
+}
+
+bool AEmpathCharacter::CanRagdoll_Implementation()
+{
+	return (bAllowRagdoll && !bRagdolling);
+}
+
+void AEmpathCharacter::StartRagdoll()
+{
+	if (CanRagdoll())
+	{
+		USkeletalMeshComponent* const MyMesh = GetMesh();
+		if (MyMesh)
+		{
+			// Update physics state
+			SetCharacterPhysicsState(EEmpathCharacterPhysicsState::FullRagdoll);
+			MyMesh->SetCollisionProfileName(FEmpathCollisionrProfileNames::Ragdoll);
+
+			// We set the capsule to ignore all interactions rather than turning off collision completely, 
+			// since there's a good chance we will get back up,
+			//and the physics state would have to be recreated again.
+			GetCapsuleComponent()->SetCollisionProfileName(FEmpathCollisionrProfileNames::PawnIgnoreAll);
+			bRagdolling = true;
+
+			// If we're not dead, start timer for getting back up
+			if (bDead == false)
+			{
+				StartAutomaticRecoverFromRagdoll();
+			}
+
+			// Otherwise, clear any current timer and signals
+			else
+			{
+				StopAutomaticRecoverFromRagdoll();
+				bDeferredGetUpFromRagdoll = false;
+			}
+
+			ReceiveStartRagdoll();
+		}
+	}
+}
+
+void AEmpathCharacter::StartAutomaticRecoverFromRagdoll()
+{
+	if (bRagdolling && !bDead)
+	{
+		// We want to wait a bit between checking whether our ragdoll is at rest for performance
+		float const NextGetUpFromRagdollCheckInterval = FMath::RandRange(RagdollCheckTimeMin, RagdollCheckTimeMax);
+		GetWorldTimerManager().SetTimer(GetUpFromRagdollTimerHandle, FTimerDelegate::CreateUObject(this, &AEmpathCharacter::CheckForEndRagdoll), NextGetUpFromRagdollCheckInterval, false);
+	}
+}
+
+void AEmpathCharacter::StopAutomaticRecoverFromRagdoll()
+{
+	GetWorldTimerManager().ClearTimer(GetUpFromRagdollTimerHandle);
+}
+
+void AEmpathCharacter::CheckForEndRagdoll()
+{
+	if (bDead == false)
+	{
+		if (IsRagdollAtRest())
+		{
+			bDeferredGetUpFromRagdoll = true;
+		}
+		else
+		{
+			StartAutomaticRecoverFromRagdoll();
+		}
+	}
+	else
+	{
+		StopAutomaticRecoverFromRagdoll();
+		bDeferredGetUpFromRagdoll = false;
+	}
+}
+
+bool AEmpathCharacter::IsRagdollAtRest() const
+{
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_IsRagdollAtRest);
+
+	if (bRagdolling)
+	{
+		int32 NumSimulatingBodies = 0;
+		float TotalBodySpeed = 0.f;
+		USkeletalMeshComponent const* const MyMesh = GetMesh();
+
+		// Calculate the current rate of movement of our physics bodies
+		for (FBodyInstance const* BI : MyMesh->Bodies)
+		{
+			if (BI->IsInstanceSimulatingPhysics())
+			{
+				if (BI->GetUnrealWorldTransform().GetLocation().Z < GetWorldSettings()->KillZ)
+				{
+					// If at least one body below KillZ, we are "at rest" in the sense that it's ok to clean us up
+					return true;
+				}
+
+				// If any one body exceeds the single-body max, we are NOT at rest
+				float const BodySpeed = BI->GetUnrealWorldVelocity().Size();
+				if (BodySpeed > RagdollRestThreshold_SingleBodyMax)
+				{
+					return false;
+				}
+
+				TotalBodySpeed += BodySpeed;
+				++NumSimulatingBodies;
+			}
+		}
+
+		// If the average body speed is too high, we are NOT at rest
+		if (NumSimulatingBodies > 0)
+		{
+			float const AverageBodySpeed = TotalBodySpeed / float(NumSimulatingBodies);
+			if (AverageBodySpeed > RagdollRestThreshold_AverageBodyMax)
+			{
+				return false;
+			}
+		}
+	}
+
+	// Not simulating physics on any bodies, so we are at rest
+	return true;
+}
+
+
+void AEmpathCharacter::StartRecoverFromRagdoll()
+{
+	USkeletalMeshComponent* const MyMesh = GetMesh();
+	if (MyMesh && !bDead)
+	{
+		GetCapsuleComponent()->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
+		ReceiveStartRecoverFromRagdoll();
+	}
+}
+
+void AEmpathCharacter::ReceiveStartRecoverFromRagdoll_Implementation()
+{
+	StopRagdoll(EEmpathCharacterPhysicsState::Kinematic);
+}
+
+void AEmpathCharacter::StopRagdoll(EEmpathCharacterPhysicsState NewPhysicsState)
+{
+	USkeletalMeshComponent* const MyMesh = GetMesh();
+	if (MyMesh && bRagdolling)
+	{
+		// Update physics state
+		SetCharacterPhysicsState(NewPhysicsState);
+		MyMesh->SetCollisionProfileName(AEmpathCharacter::MeshCollisionProfileName);
+		GetCapsuleComponent()->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
+
+		// Reattach mesh to capsule
+		MyMesh->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::KeepWorldTransform);
+
+		bRagdolling = false;
+		ReceiveStopRagdoll();
 	}
 }

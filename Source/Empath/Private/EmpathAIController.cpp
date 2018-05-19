@@ -14,8 +14,8 @@
 
 
 // Stats for UE Profiler
-DECLARE_CYCLE_STAT(TEXT("UpdateAttackTarget"), STAT_EMPATH_UpdateAttackTarget, STATGROUP_EMPATH_AICon);
-DECLARE_CYCLE_STAT(TEXT("UpdateVision"), STAT_EMPATH_UpdateVision, STATGROUP_EMPATH_AICon);
+DECLARE_CYCLE_STAT(TEXT("AI Update Attack Target"), STAT_EMPATH_UpdateAttackTarget, STATGROUP_EMPATH_AICon);
+DECLARE_CYCLE_STAT(TEXT("AI Update Vision"), STAT_EMPATH_UpdateVision, STATGROUP_EMPATH_AICon);
 
 // Cannot statics in class initializer so initialize here
 const float AEmpathAIController::MinTargetSelectionScore = -9999999.0f;

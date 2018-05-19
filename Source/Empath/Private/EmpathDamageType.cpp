@@ -7,7 +7,6 @@ UEmpathDamageType::UEmpathDamageType()
 {
 	StunDamageMultiplier = 1.0f;
 	FriendlyFireDamageMultiplier = 1.0f;
-	bAutoStun = false;
 	DeathImpulse = 800.0f;
 	DeathImpulseUpkick = 800.0f;
 	bIgnorePerBoneDamageScaling = false;

@@ -11,13 +11,14 @@
 // Stat groups for UE Profiler
 DECLARE_STATS_GROUP(TEXT("EmpathCharacter"), STATGROUP_EMPATH_Character, STATCAT_Advanced);
 
-class AEmpathAIController;
-class UDamageType;
-
+// Notify delegate
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FOnCharacterDeathDelegate, FHitResult const&, KillingHitInfo, FVector, KillingHitImpulseDir, const AController*, DeathInstigator, const AActor*, DeathCauser, const UDamageType*, DeathDamageType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCharacterStunnedDelegate, const AController*, StunInstigator, const AActor*, StunCauser, const float, StunDuration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterStunEndDelegate);
 
+class AEmpathAIController;
+class UDamageType;
+class UPhysicalAnimationComponent;
 
 UCLASS()
 class EMPATH_API AEmpathCharacter : public ACharacter, public IEmpathTeamAgentInterface
@@ -25,6 +26,14 @@ class EMPATH_API AEmpathCharacter : public ACharacter, public IEmpathTeamAgentIn
 	GENERATED_BODY()
 
 public:	
+	// Const declarations
+	static const FName PhysicalAnimationComponentName;
+	static const FName MeshCollisionProfileName;
+	static const float RagdollCheckTimeMin;
+	static const float RagdollCheckTimeMax;
+	static const float RagdollRestThreshold_SingleBodyMax;
+	static const float RagdollRestThreshold_AverageBodyMax;
+
 
 	// Sets default values for this character's properties
 	AEmpathCharacter(const FObjectInitializer& ObjectInitializer);
@@ -65,9 +74,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
 	bool IsStunned() const { return bStunned; }
 
-	/** Overridable function for whether the character can be stunned. By default, only true if IsStunnable, and not Stunned or Dead. */
+	/** Overridable function for whether the character can be stunned. 
+	By default, only true if IsStunnable, not Stunned, Dead or Ragdolling, 
+	and more than StunImmunityTimeAfterStunRecovery has passed since the last time we were stunned. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat")
 	bool CanBeStunned();
+	
+	/** Overridable function for whether the character can ragdoll. 
+	By default, only true if AllowRagdoll and not already Ragdolling. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat")
+	bool CanRagdoll();
+
+	/** Whether the character is currently ragdolling. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
+	bool IsRagdolling() const { return bRagdolling; }
+
+	/** Whether the ragdolled character is currently at rest. */
+	UFUNCTION(BlueprintCallable, Category = "Odin")
+	bool IsRagdollAtRest() const;
 
 	// ---------------------------------------------------------
 	//	Events and receives
@@ -114,6 +138,14 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Empath|Combat")
 	FOnCharacterStunEndDelegate OnStunEnd;
 
+	/** Called on character physics state end. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnEndCharacterPhysicsState"))
+	void ReceiveEndCharacterPhysicsState(EEmpathCharacterPhysicsState OldState);
+
+	/** Called on character physics state begin. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnBeginCharacterPhysicsState"))
+	void ReceiveBeginCharacterPhysicsState(EEmpathCharacterPhysicsState NewState);
+
 	// ---------------------------------------------------------
 	//	Combat
 
@@ -124,6 +156,10 @@ public:
 	/** The minimum effective combat range for the character. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float MinEffectiveDistance;
+
+	/** Whether this character is can ragdoll in principle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
+	bool bAllowRagdoll;
 
 	/** Whether this character is stunnable in principle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
@@ -141,15 +177,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float StunDurationDefault;
 
+	/** How long after recovering from a stun that this character should be immune to being stunned again. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
+	float StunImmunityTimeAfterStunRecovery;
+
+	/** The last time that we were stunned. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Combat")
+	float LastStunTime;
+
 	/** History of stun damage that has been applied to this character. */
 	TArray<FDamageHistoryEvent, TInlineAllocator<16>> StunDamageHistory;
 
 	/** Checks whether we should become stunned */
 	virtual void TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser);
-
-	/** Orders the character's skeletal mesh to begin ragdollizing. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
-	void StartRagdoll();
 
 	// ---------------------------------------------------------
 	//	Health and damage
@@ -216,6 +256,67 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health")
 	void ProcessFinalDamage(const float DamageAmount, FHitResult const& HitInfo, FVector HitImpulseDir, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser);
 
+	// ---------------------------------------------------------
+	//	Physics
+
+	/** Current character physics state. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Physics")
+	EEmpathCharacterPhysicsState CurrentCharacterPhysicsState;
+
+	/** Physics state presets. */
+	UPROPERTY(EditDefaultsOnly, Category = "Empath|Physics")
+	TArray<FEmpathCharPhysicsStateSettingsEntry> PhysicsSettingsEntries;
+
+	/** Sets a new physics state preset. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
+	bool SetCharacterPhysicsState(EEmpathCharacterPhysicsState NewState);
+
+	/** Signals the character's to begin ragdollizing. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
+	void StartRagdoll();
+
+	/** Called when the character begins ragdolling. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRagdoll"))
+	void ReceiveStartRagdoll();
+
+	/** Signals the character to stop ragdolling. 
+	NewPhysicsState is what we will transition to, since FullRagdoll is done. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
+	void StopRagdoll(EEmpathCharacterPhysicsState NewPhysicsState);
+
+	/** Called when the character stops ragdolling. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStopRagdoll"))
+	void ReceiveStopRagdoll();
+
+	/** Signals the character's to begin recovering from the ragdoll. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
+	void StartRecoverFromRagdoll();
+
+	/** Called when we begin recovering from the ragdoll. By default, calls StopRagdoll. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRecoveryFromRagdoll"))
+	void ReceiveStartRecoverFromRagdoll();
+
+	/** Physical animation component for controlling the skeletal mesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Physics")
+	UPhysicalAnimationComponent* PhysicalAnimation;
+
+	/** Timer for automatic recovery from ragdoll state. */
+	FTimerHandle GetUpFromRagdollTimerHandle;
+
+	/** If character is currently ragdolled, starts the auto-getup-when-at-rest feature. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
+	void StartAutomaticRecoverFromRagdoll();
+
+	/** If character is currently ragdolled, disables the auto-getup-when-at-rest feature. 
+	Only affects this instance of ragdoll, 
+	subsequent calls to StartRagdoll will restart automatic recovery */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
+	void StopAutomaticRecoverFromRagdoll();
+
+	/** Checks to see if our ragdoll is at rest and whether we are not dead. If so, signals us to get up. */
+	void CheckForEndRagdoll();
+
+
 protected:
 
 	// Called when the game starts or when spawned
@@ -235,6 +336,15 @@ private:
 	/** Whether the character is currently stunned. */
 	bool bStunned;
 
+	/** Whether the character is currently ragdolling. */
+	bool bRagdolling;
+
+	/** Whether the character has been signalled to get up from ragdoll. */
+	bool bDeferredGetUpFromRagdoll;
+
 	/** Stored reference to our control Empath AI controller */
 	AEmpathAIController* CachedEmpathAICon;
+
+	/** Map of physics states to settings for faster lookup */
+	TMap<EEmpathCharacterPhysicsState, FEmpathCharPhysicsStateSettings> PhysicsStateToSettingsMap;
 };

@@ -29,10 +29,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	bool bIgnorePerBoneDamageScaling;
 	
-	/** Whether this damage should automatically stun the target upon hit. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	bool bAutoStun;
-	
 	/** How much of an we should apply to a character on death, in the direction of the killing hit. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	float DeathImpulse;

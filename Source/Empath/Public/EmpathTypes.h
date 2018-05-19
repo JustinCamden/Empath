@@ -33,6 +33,12 @@ struct FEmpathBBKeys
 	static const FName FleeTargetRadius;
 };
 
+struct FEmpathCollisionrProfileNames
+{
+	static const FName Ragdoll;
+	static const FName PawnIgnoreAll;
+};
+
 USTRUCT(BlueprintType)
 struct FSecondaryAttackTarget
 {
@@ -124,4 +130,67 @@ public:
 		: DamageAmount(InDamageAmount),
 		EventTimestamp(InEventTimestamp)
 	{}
+};
+
+UENUM(BlueprintType)
+enum class EEmpathCharacterPhysicsState : uint8
+{
+	/** No physics. */
+	Kinematic,
+
+	/** Fully ragdolled. */
+	FullRagdoll,
+
+	/** Physical hit reactions */
+	HitReact,
+
+	/** Can be hit by the player -- should only on when very close to player */
+	PlayerHittable,
+
+	/** Getting up from ragdoll */
+	GettingUp,
+};
+
+USTRUCT(BlueprintType)
+struct FEmpathCharPhysicsStateSettings
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, Category = "Empath|Physics")
+	bool bSimulatePhysics;
+
+	UPROPERTY(EditAnywhere, Category = "Empath|Physics")
+	bool bEnableGravity;
+
+	UPROPERTY(EditAnywhere, Category = "Empath|Physics")
+	FName PhysicalAnimationProfileName;
+
+	UPROPERTY(EditAnywhere, Category = "Empath|Physics")
+	FName PhysicalAnimationBodyName;
+
+	UPROPERTY(EditAnywhere, Category = "Empath|Physics")
+	FName SimulatePhysicsBodyBelowName;
+
+	UPROPERTY(EditAnywhere, Category = "Empath|Physics")
+	FName ConstraintProfileJointName;
+
+	UPROPERTY(EditAnywhere, Category = "Empath|Physics")
+	FName ConstraintProfileName;
+
+	FEmpathCharPhysicsStateSettings()
+		: bSimulatePhysics(false),
+		bEnableGravity(false)
+	{}
+};
+
+USTRUCT(BlueprintType)
+struct FEmpathCharPhysicsStateSettingsEntry
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, Category = "Physics")
+	EEmpathCharacterPhysicsState PhysicsState;
+
+	UPROPERTY(EditAnywhere, Category = "Physics")
+	FEmpathCharPhysicsStateSettings Settings;
 };

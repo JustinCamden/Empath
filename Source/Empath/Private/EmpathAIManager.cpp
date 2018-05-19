@@ -7,7 +7,7 @@
 #include "EmpathTypes.h"
 
 // Stats for UE Profiler
-DECLARE_CYCLE_STAT(TEXT("HearingChecks"), STAT_EMPATH_HearingChecks, STATGROUP_EMPATH_AIManager);
+DECLARE_CYCLE_STAT(TEXT("AI Hearing Checks"), STAT_EMPATH_HearingChecks, STATGROUP_EMPATH_AIManager);
 
 const float AEmpathAIManager::HearingDisconnectDist = 500.0f;
 
