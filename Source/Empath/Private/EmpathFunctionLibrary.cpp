@@ -4,17 +4,18 @@
 #include "EmpathVRCharacter.h"
 #include "EmpathGameModeBase.h"
 #include "EmpathAimLocationInterface.h"
+#include "Runtime/Engine/Classes/Kismet/KismetMathLibrary.h"
 
 // Static consts
 static const float MaxImpulsePerMass = 5000.f;
 static const float MaxPointImpulseMag = 120000.f;
 
-const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(const AActor* Actor, FVector LookDirection)
+const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(const AActor* Actor, FVector LookOrigin, FVector LookDirection)
 {
 	// First, check for the aim location interface
 	if (Actor->GetClass()->ImplementsInterface(UEmpathAimLocationInterface::StaticClass()))
 	{
-		return IEmpathAimLocationInterface::Execute_GetCustomAimLocationOnActor(Actor, LookDirection);
+		return IEmpathAimLocationInterface::Execute_GetCustomAimLocationOnActor(Actor, LookOrigin, LookDirection);
 	}
 
 	// Nect, check if the object as a controller. If so, call this function in its pawn instead.
@@ -244,3 +245,26 @@ void UEmpathFunctionLibrary::AddDistributedImpulseAtLocation(USkeletalMeshCompon
 	SkelMesh->AddImpulseAtLocation(ImpulseDir * PointImpulseMag, Location, BoneName);
 }
 
+const FVector UEmpathFunctionLibrary::ConvertDirectionToComponentSpace(const USceneComponent* SceneComponent, const FVector Direction)
+{
+	if (SceneComponent)
+	{
+		return UKismetMathLibrary::InverseTransformDirection(SceneComponent->GetComponentTransform(), Direction);
+	}
+	return FVector::ZeroVector;
+}
+
+const FVector UEmpathFunctionLibrary::ConvertDirectionToActorSpace(const AActor* Actor, const FVector Direction)
+{
+	if (Actor)
+	{
+		return UKismetMathLibrary::InverseTransformDirection(Actor->GetActorTransform(), Direction);
+	}
+	return FVector::ZeroVector;
+}
+
+
+const float UEmpathFunctionLibrary::GetMagnitudeInDirection(const FVector Vector, const FVector Direction)
+{
+	return FVector::DotProduct(Vector, Direction.GetSafeNormal());
+}

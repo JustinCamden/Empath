@@ -27,11 +27,11 @@ public:
 	EEmpathTeam GetTeamNum() const;
 
 	// ---------------------------------------------------------
-	//	TeamAgent Interface
+	//	Aim location interface
 
 	/** Returns the team number of the actor */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Team")
-	FVector GetCustomAimLocationOnActor(FVector LookOrigin) const;
+	FVector GetCustomAimLocationOnActor(FVector LookOrigin, FVector LookDirection) const;
 
 	AEmpathVRCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 

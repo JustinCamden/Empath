@@ -21,7 +21,7 @@ public:
 	First checks for Aim Location interface, then calls GetCenterMassLocation. 
 	Look direction is used with the interface when multiple aim locations are possible. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
-	static const FVector GetAimLocationOnActor(const AActor* Actor, FVector LookDirection = FVector::ZeroVector);
+	static const FVector GetAimLocationOnActor(const AActor* Actor, FVector LookOrigin = FVector::ZeroVector, FVector LookDirection = FVector::ZeroVector);
 
 	/** Gets the center mass location of an Actor, or the VR Location if it is a VR Character. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
@@ -54,4 +54,16 @@ public:
 	/** Add distributed impulse function, (borrowed from Robo Recall so if it causes problems, lets just remove it. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
 	static void AddDistributedImpulseAtLocation(USkeletalMeshComponent* SkelMesh, FVector Impulse, FVector Location, FName BoneName, float DistributionPct = 0.5f);
+
+	/** Transforms a direction (such as velocity) to be expressed in a component's relative space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const FVector ConvertDirectionToComponentSpace(const USceneComponent* SceneComponent, const FVector Direction);
+
+	/** Transforms a direction (such as velocity) to be expressed in an actors's relative space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const FVector ConvertDirectionToActorSpace(const AActor* Actor, const FVector Direction);
+
+	/** Gets how far one vector (such as velocity) travels along a unit direction vector (such as world up). Automatically normalizes the directional vector. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const float GetMagnitudeInDirection(const FVector Vector, const FVector Direction);
 };

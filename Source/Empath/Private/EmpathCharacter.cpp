@@ -529,8 +529,7 @@ void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmoun
 void AEmpathCharacter::TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Log stun event
-	UWorld* const World = GetWorld();
-	StunDamageHistory.Add(FDamageHistoryEvent(StunDamageAmount,- World->GetTimeSeconds()));
+	StunDamageHistory.Add(FDamageHistoryEvent(StunDamageAmount,- GetWorld()->GetTimeSeconds()));
 
 	// Clean old stun events. They are stored oldest->newest, so we can just iterate to find 
 	// the transition point. This plus the next loop will still constitute at most one pass 
@@ -540,7 +539,7 @@ void AEmpathCharacter::TakeStunDamage(const float StunDamageAmount, const AContr
 	for (int32 Idx = 0; Idx < StunDamageHistory.Num(); ++Idx)
 	{
 		FDamageHistoryEvent& DHE = StunDamageHistory[Idx];
-		if (World->TimeSince(DHE.EventTimestamp) > StunTimeThreshold)
+		if (GetWorld()->TimeSince(DHE.EventTimestamp) > StunTimeThreshold)
 		{
 				NumToRemove++;
 		}

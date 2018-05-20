@@ -194,3 +194,18 @@ struct FEmpathCharPhysicsStateSettingsEntry
 	UPROPERTY(EditAnywhere, Category = "Physics")
 	FEmpathCharPhysicsStateSettings Settings;
 };
+
+struct FVelocityFrame
+{
+public:
+
+	FVector Velocity;
+	FVector AngularVelocity;
+	float FrameTimeStamp;
+
+	FVelocityFrame(FVector InVelocity = FVector::ZeroVector, FVector InAngularVelocity = FVector::ZeroVector, float InEventTimestamp = 0.0f)
+		: Velocity(InVelocity),
+		AngularVelocity(InAngularVelocity),
+		FrameTimeStamp(InEventTimestamp)
+	{}
+};
