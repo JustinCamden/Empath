@@ -62,7 +62,7 @@ public:
 
 	/** The kinematic angular velocity of this component, averaged from all the recorded velocites within the same time. Expressed in Radians. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
-	FVector GetCurrentAngularKinematicVelocityRads() const { return CurrentKinematicAngularVelocity; }
+	FVector GetCurrentKinematicAngularVelocityRads() const { return CurrentKinematicAngularVelocity; }
 
 	/** The kinematic angular velocity of this component on the last frame, averaged from all the recorded velocites within the same time. Expressed in Radians. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
@@ -78,7 +78,7 @@ public:
 
 	/** The kinematic angular velocity of this component, averaged from all the recorded velocites within the same time. Expressed in degrees. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
-	FVector GetCurrentAngularKinematicVelocity() const { return FVector::RadiansToDegrees(CurrentKinematicAngularVelocity); }
+	FVector GetCurrentKinematicAngularVelocity() const { return FVector::RadiansToDegrees(CurrentKinematicAngularVelocity); }
 
 	/** The kinematic angular velocity of this component on the last frame, averaged from all the recorded velocites within the same time. Expressed in degrees. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")

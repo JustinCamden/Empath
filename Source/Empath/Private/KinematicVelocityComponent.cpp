@@ -37,16 +37,15 @@ void UKinematicVelocityComponent::BeginPlay()
 void UKinematicVelocityComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
+	CalculateKinematicVelocity();
 }
 
 void UKinematicVelocityComponent::Activate(bool bReset)
 {
 	Super::Activate(bReset);
 
-	// Initialize last position to this position so that our 
-	// calculations don't think we suddenly jumped places.
+	// Initialize last position and rotation to this position and rotation,
+	// so that our calculations don't think we suddenly jumped places.
 	if (bIsActive)
 	{
 		LastLocation = GetComponentLocation();
@@ -97,7 +96,6 @@ void UKinematicVelocityComponent::CalculateKinematicVelocity()
 	FVector Axis;
 	float Angle;
 	DeltaRotation.ToAxisAndAngle(Axis, Angle);
-	Angle = FMath::RadiansToDegrees(Angle);
 	CurrentFrameAngularVelocity = CurrentRotation.RotateVector((Axis * Angle) / DeltaSeconds);
 
 	// Next get the velocity over the sample time if appropriate.
@@ -109,9 +107,8 @@ void UKinematicVelocityComponent::CalculateKinematicVelocity()
 
 		// Loop through and average the array to get our new kinematic velocity.
 		// Clean up while we're at it. This should take at most one iteration through the array.
-		int32 Count = VelocityHistory.Num();
 		int32 NumToRemove = 0;
-		for (int32 Idx = 0; Idx < Count; ++Idx)
+		for (int32 Idx = 0; Idx < VelocityHistory.Num(); ++Idx)
 		{
 			FVelocityFrame& VF = VelocityHistory[Idx];
 			if (World->TimeSince(VF.FrameTimeStamp) > SampleTime)
@@ -128,7 +125,6 @@ void UKinematicVelocityComponent::CalculateKinematicVelocity()
 		if (NumToRemove > 0)
 		{
 			VelocityHistory.RemoveAt(0, NumToRemove);
-			Count -= NumToRemove;
 		}
 
 
@@ -139,10 +135,10 @@ void UKinematicVelocityComponent::CalculateKinematicVelocity()
 		for (FVelocityFrame& VF : VelocityHistory)
 		{
 			TotalVelocity += VF.Velocity;
-			TotalAngularVelocity = VF.AngularVelocity;
+			TotalAngularVelocity += VF.AngularVelocity;
 		}
-		CurrentKinematicVelocity = TotalVelocity / (float)Count;
-		CurrentKinematicAngularVelocity = TotalAngularVelocity / (float)Count;
+		CurrentKinematicVelocity = TotalVelocity / (float)VelocityHistory.Num();
+		CurrentKinematicAngularVelocity = TotalAngularVelocity / (float)VelocityHistory.Num();
 	}
 
 	// If our sample time is <= 0 we just use the frame velocity.
