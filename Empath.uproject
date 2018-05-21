@@ -11,7 +11,8 @@
 			"AdditionalDependencies": [
 				"VRExpansionPlugin",
 				"Engine",
-				"CoreUObject"
+				"CoreUObject",
+				"AIModule"
 			]
 		}
 	],

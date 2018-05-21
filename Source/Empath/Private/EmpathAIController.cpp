@@ -624,8 +624,16 @@ void AEmpathAIController::UpdateAttackTarget()
 	// If we auto target the player, then simply set them as the attack target
 	if (bAutoTargetPlayer)
 	{
-		SetAttackTarget(GetWorld()->GetFirstPlayerController()->GetPawn());
-		return;
+		AController* PlayerCon = GetWorld()->GetFirstPlayerController();
+		if (PlayerCon)
+		{
+			APawn* PlayerPawn = PlayerCon->GetPawn();
+			if (PlayerPawn)
+			{
+				SetAttackTarget(PlayerPawn);
+				return;
+			}
+		}
 	}
 
 	// Initialize internal variables

@@ -4,7 +4,6 @@
 #include "EmpathVRCharacter.h"
 #include "EmpathGameModeBase.h"
 #include "EmpathAimLocationInterface.h"
-#include "Runtime/Engine/Classes/Kismet/KismetMathLibrary.h"
 
 // Static consts
 static const float MaxImpulsePerMass = 5000.f;
@@ -245,24 +244,60 @@ void UEmpathFunctionLibrary::AddDistributedImpulseAtLocation(USkeletalMeshCompon
 	SkelMesh->AddImpulseAtLocation(ImpulseDir * PointImpulseMag, Location, BoneName);
 }
 
-const FVector UEmpathFunctionLibrary::ConvertDirectionToComponentSpace(const USceneComponent* SceneComponent, const FVector Direction)
+const FVector UEmpathFunctionLibrary::ConvertWorldDirectionToComponentSpace(const USceneComponent* SceneComponent, const FVector Direction)
 {
 	if (SceneComponent)
 	{
-		return UKismetMathLibrary::InverseTransformDirection(SceneComponent->GetComponentTransform(), Direction);
+		return SceneComponent->GetComponentTransform().InverseTransformVectorNoScale(Direction);
 	}
 	return FVector::ZeroVector;
 }
 
-const FVector UEmpathFunctionLibrary::ConvertDirectionToActorSpace(const AActor* Actor, const FVector Direction)
+const FVector UEmpathFunctionLibrary::ConvertWorldDirectionToActorSpace(const AActor* Actor, const FVector Direction)
 {
 	if (Actor)
 	{
-		return UKismetMathLibrary::InverseTransformDirection(Actor->GetActorTransform(), Direction);
+		return Actor->GetActorTransform().InverseTransformVectorNoScale(Direction);
 	}
 	return FVector::ZeroVector;
 }
 
+const FVector UEmpathFunctionLibrary::ConvertComponentDirectionToWorldSpace(const USceneComponent* SceneComponent, const FVector Direction)
+{
+	if (SceneComponent)
+	{
+		return SceneComponent->GetComponentTransform().TransformVectorNoScale(Direction);
+	}
+	return FVector::ZeroVector;
+}
+
+const FVector UEmpathFunctionLibrary::ConvertComponentDirectionToActorSpace(const USceneComponent* SceneComponent, const AActor* Actor, const FVector Direction)
+{
+	if (Actor && SceneComponent)
+	{
+		return Actor->GetActorTransform().InverseTransformVectorNoScale(SceneComponent->GetComponentTransform().TransformVectorNoScale(Direction));
+	}
+	return FVector::ZeroVector;
+}
+
+const FVector UEmpathFunctionLibrary::ConvertActorDirectionToWorldSpace(const AActor* Actor, const FVector Direction)
+{
+	if (Actor)
+	{
+		return Actor->GetActorTransform().TransformVectorNoScale(Direction);
+	}
+	return FVector::ZeroVector;
+}
+
+
+const FVector UEmpathFunctionLibrary::ConvertActorDirectionToComponentSpace(const AActor* Actor, const USceneComponent* SceneComponent, const FVector Direction)
+{
+	if (Actor && SceneComponent)
+	{
+		return SceneComponent->GetComponentTransform().InverseTransformVectorNoScale(Actor->GetActorTransform().TransformVectorNoScale(Direction));
+	}
+	return FVector::ZeroVector;
+}
 
 const float UEmpathFunctionLibrary::GetMagnitudeInDirection(const FVector Vector, const FVector Direction)
 {

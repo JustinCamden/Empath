@@ -34,6 +34,7 @@ public:
 	void OnLostPlayerTimerExpired();
 
 	// Returns the non-player attack targets in the scene
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	TArray<FSecondaryAttackTarget> const& GetSecondaryAttackTargets() const { return SecondaryAttackTargets; }
 
 	/** Adds a secondary attack target to the list. */
@@ -45,19 +46,28 @@ public:
 	void RemoveSecondaryTarget(AActor* TargetToRemove);
 
 	/** Returns the number of AIs targeting an actor. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void GetNumAITargeting(AActor const* Target, int32& NumAITargetingCandiate, int32& NumTotalAI) const;
 
 	/** Returns the radius of the attack target. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	float GetAttackTargetRadius(AActor* AttackTarget) const;
 
 	/** Returns whether the location of the target is known. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	bool IsTargetLocationKnown(AActor const* Target) const;
 
 	/** Alerts us that the target has been spotted, and updates us as to its location. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void UpdateKnownTargetLocation(AActor const* Target);
 
 	/** Returns whether the location of the target may be lost. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	bool IsPlayerPotentiallyLost() const;
+
+	/** Returns whether the location of the target may be lost. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	FVector GetLastKnownPlayerLocation() const { return LastKnownPlayerLocation; }
 
 	/** List of the EmpathAIControllers in the scene. */
 	UPROPERTY(Category = "Empath|AI", BlueprintReadOnly)

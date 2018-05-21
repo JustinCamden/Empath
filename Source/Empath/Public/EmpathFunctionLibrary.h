@@ -55,13 +55,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
 	static void AddDistributedImpulseAtLocation(USkeletalMeshComponent* SkelMesh, FVector Impulse, FVector Location, FName BoneName, float DistributionPct = 0.5f);
 
-	/** Transforms a direction (such as velocity) to be expressed in a component's relative space. */
+	/** Transforms a world direction (such as velocity) to be expressed in a component's relative space. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
-	static const FVector ConvertDirectionToComponentSpace(const USceneComponent* SceneComponent, const FVector Direction);
+	static const FVector ConvertWorldDirectionToComponentSpace(const USceneComponent* SceneComponent, const FVector Direction);
 
-	/** Transforms a direction (such as velocity) to be expressed in an actors's relative space. */
+	/** Transforms a world direction (such as velocity) to be expressed in an actors's relative space. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
-	static const FVector ConvertDirectionToActorSpace(const AActor* Actor, const FVector Direction);
+	static const FVector ConvertWorldDirectionToActorSpace(const AActor* Actor, const FVector Direction);
+
+	/** Transforms a component direction (such as forward) to be expressed in world space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const FVector ConvertComponentDirectionToWorldSpace(const USceneComponent* SceneComponent, const FVector Direction);
+
+	/** Transforms a component direction (such as forward) to be expressed in an actors's relative space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const FVector ConvertComponentDirectionToActorSpace(const USceneComponent* SceneComponent, const AActor* Actor, const FVector Direction);
+
+	/** Transforms an actor direction (such as forward) to be expressed in world space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const FVector ConvertActorDirectionToWorldSpace(const AActor* Actor, const FVector Direction);
+
+	/** Transforms an actor direction (such as forward) to be expressed in a component's relative space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
+	static const FVector ConvertActorDirectionToComponentSpace(const AActor* Actor, const USceneComponent* SceneComponent, const FVector Direction);
 
 	/** Gets how far one vector (such as velocity) travels along a unit direction vector (such as world up). Automatically normalizes the directional vector. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")

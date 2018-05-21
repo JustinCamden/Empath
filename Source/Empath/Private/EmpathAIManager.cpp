@@ -161,11 +161,12 @@ float AEmpathAIManager::GetAttackTargetRadius(AActor* AttackTarget) const
 void AEmpathAIManager::UpdateKnownTargetLocation(AActor const* Target)
 {
 	// If the target is a player
-	if (Cast<AEmpathVRCharacter>(Target) != nullptr)
+	const AEmpathVRCharacter* Player = Cast<AEmpathVRCharacter>(Target);
+	if (Player)
 	{
 		// Update variables
 		bIsPlayerLocationKnown = true;
-		LastKnownPlayerLocation = Target->GetActorLocation();
+		LastKnownPlayerLocation = Player->GetVRLocation();
 
 		// Stop the "lost player" state flow
 		PlayerAwarenessState = EPlayerAwarenessState::KnownLocation;
