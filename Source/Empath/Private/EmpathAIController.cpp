@@ -711,10 +711,17 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 	// Check if we can see the target
 	UWorld* const World = GetWorld();
 	AActor* const AttackTarget = GetAttackTarget();
-	AEmpathVRCharacter* const PlayerTarget = Cast<AEmpathVRCharacter>(AttackTarget);
 
 	if (World && AttackTarget && AIManager)
 	{
+		// Check is the player is teleporting. If so, we can't see them
+		AEmpathVRCharacter* const PlayerTarget = Cast<AEmpathVRCharacter>(AttackTarget);
+		if (PlayerTarget && PlayerTarget->IsTeleporting())
+		{
+			SetCanSeeTarget(false);
+			return;
+		}
+
 		// Set up raycasting params
 		FCollisionQueryParams Params(AIVisionTraceTag);
 		Params.AddIgnoredActor(GetPawn());
@@ -804,6 +811,22 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 					if (OutHit.bBlockingHit && (OutHit.Actor != AttackTarget))
 					{
 						bHasLOS = false;
+						if (bDrawDebugLOSBlockingHits)
+						{
+							UE_LOG(LogTemp, Log, TEXT("Visual trace hit %s!"), *GetNameSafe(OutHit.GetActor()));
+
+							DrawDebugBox(GetWorld(), TraceStart, FVector(8.f), FColor::White, false, 5.f);
+							DrawDebugBox(GetWorld(), TraceEnd, FVector(8.f), FColor::Yellow, false, 5.f);
+							DrawDebugSphere(GetWorld(), OutHit.ImpactPoint, 8.f, 10, FColor::Red, false, 5.f);
+							DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Yellow, false, 5.f, 0, 3.f);
+						}
+					}
+					else
+					{
+						if (bDrawDebugLOSBlockingHits)
+						{
+							DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 5.f, 0, 3.f);
+						}
 					}
 				}
 				SetCanSeeTarget(bHasLOS);
@@ -970,23 +993,23 @@ void AEmpathAIController::OnLOSTraceComplete(const FTraceHandle& TraceHandle, FT
 
 	// Look for any results that resulted in a blocking hit
 	bool bHasLOS = true;
-	FHitResult const* const bHit = FHitResult::GetFirstBlockingHit(TraceDatum.OutHits);
+	FHitResult const* const OutHit = FHitResult::GetFirstBlockingHit(TraceDatum.OutHits);
 
 	// If we hit an object that isn't us or the attack target, then we do not have line of sight
-	if (bHit)
+	if (OutHit)
 	{
-		if (bHit && bHit->Actor != GetAttackTarget())
+		if (OutHit->bBlockingHit && OutHit->Actor != GetAttackTarget())
 		{
 			bHasLOS = false;
 
 			// Draw debug blocking hits if appropriate
 			if (bDrawDebugLOSBlockingHits)
 			{
-				UE_LOG(LogTemp, Log, TEXT("Visual trace hit! %s"), *GetNameSafe(bHit->GetActor()));
+				UE_LOG(LogTemp, Log, TEXT("Visual trace hit %s!"), *GetNameSafe(OutHit->GetActor()));
 
 				DrawDebugBox(GetWorld(), TraceDatum.Start, FVector(8.f), FColor::White, false, 5.f);
 				DrawDebugBox(GetWorld(), TraceDatum.End, FVector(8.f), FColor::Yellow, false, 5.f);
-				DrawDebugSphere(GetWorld(), bHit->ImpactPoint, 8.f, 10, FColor::Red, false, 5.f);
+				DrawDebugSphere(GetWorld(), OutHit->ImpactPoint, 8.f, 10, FColor::Red, false, 5.f);
 				DrawDebugLine(GetWorld(), TraceDatum.Start, TraceDatum.End, FColor::Yellow, false, 5.f, 0, 3.f);
 			}
 		}
