@@ -3,7 +3,7 @@
 #include "EQC_PlayerLocation.h"
 #include "EnvironmentQuery/EnvQueryTypes.h"
 #include "EmpathAIController.h"
-#include "EmpathVRCharacter.h"
+#include "EmpathPlayerCharacter.h"
 #include "Runtime/Engine/Public/EngineUtils.h"
 #include "EnvironmentQuery/EQSTestingPawn.h"
 #include "EnvironmentQuery/Items/EnvQueryItemType_Point.h"
@@ -22,7 +22,7 @@ void UEQC_PlayerLocation::ProvideContext(FEnvQueryInstance& QueryInstance, FEnvQ
 			APawn* PlayerPawn = PlayerCon->GetPawn();
 			if (PlayerPawn)
 			{
-				AEmpathVRCharacter* VRChar = Cast<AEmpathVRCharacter>(PlayerPawn);
+				AEmpathPlayerCharacter* VRChar = Cast<AEmpathPlayerCharacter>(PlayerPawn);
 				if (VRChar)
 				{
 					TargetLocation = VRChar->GetVRLocation();

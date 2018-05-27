@@ -13,7 +13,7 @@ DECLARE_STATS_GROUP(TEXT("EmpathAICon"), STATGROUP_EMPATH_AICon, STATCAT_Advance
 
 class AEmpathAIManager;
 class AEmpathCharacter;
-class AEmpathVRCharacter;
+class AEmpathPlayerCharacter;
 
 /**
 *

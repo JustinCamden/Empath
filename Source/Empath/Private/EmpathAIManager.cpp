@@ -3,7 +3,7 @@
 #include "EmpathAIManager.h"
 #include "EmpathAIController.h"
 #include "Runtime/Engine/Public/EngineUtils.h"
-#include "EmpathVRCharacter.h"
+#include "EmpathPlayerCharacter.h"
 #include "EmpathTypes.h"
 
 // Stats for UE Profiler
@@ -57,7 +57,7 @@ void AEmpathAIManager::BeginPlay()
 		APawn* PlayerPawn = PlayerCon->GetPawn();
 		if (PlayerPawn)
 		{
-			AEmpathVRCharacter* VRPlayer = Cast<AEmpathVRCharacter>(PlayerPawn);
+			AEmpathPlayerCharacter* VRPlayer = Cast<AEmpathPlayerCharacter>(PlayerPawn);
 			if (VRPlayer)
 			{
 				VRPlayer->OnTeleport.AddDynamic(this, &AEmpathAIManager::OnPlayerTeleported);
@@ -161,7 +161,7 @@ float AEmpathAIManager::GetAttackTargetRadius(AActor* AttackTarget) const
 void AEmpathAIManager::UpdateKnownTargetLocation(AActor const* Target)
 {
 	// If the target is a player
-	const AEmpathVRCharacter* Player = Cast<AEmpathVRCharacter>(Target);
+	const AEmpathPlayerCharacter* Player = Cast<AEmpathPlayerCharacter>(Target);
 	if (Player)
 	{
 		// Update variables
@@ -195,7 +195,7 @@ bool AEmpathAIManager::IsTargetLocationKnown(AActor const* Target) const
 	if (Target)
 	{
 		// If this is the player, return whether the player's location is known.
-		if (Cast<AEmpathVRCharacter>(Target) != nullptr)
+		if (Cast<AEmpathPlayerCharacter>(Target) != nullptr)
 		{
 			return bIsPlayerLocationKnown;
 		}
@@ -323,10 +323,10 @@ void AEmpathAIManager::ReportNoise(AActor* NoiseInstigator, AActor* NoiseMaker, 
 	{
 		return;
 	}
-	AEmpathVRCharacter* VRCharNoiseInstigator = Cast<AEmpathVRCharacter>(NoiseInstigator);
+	AEmpathPlayerCharacter* VRCharNoiseInstigator = Cast<AEmpathPlayerCharacter>(NoiseInstigator);
 	if (!VRCharNoiseInstigator)
 	{
-		VRCharNoiseInstigator = Cast<AEmpathVRCharacter>(NoiseInstigator->Instigator);
+		VRCharNoiseInstigator = Cast<AEmpathPlayerCharacter>(NoiseInstigator->Instigator);
 		if (!VRCharNoiseInstigator)
 		{
 			return;

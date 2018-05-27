@@ -1,7 +1,7 @@
 // Copyright 2018 Team Empath All Rights Reserved
 
 #include "EmpathFunctionLibrary.h"
-#include "EmpathVRCharacter.h"
+#include "EmpathPlayerCharacter.h"
 #include "EmpathGameModeBase.h"
 #include "EmpathAimLocationInterface.h"
 
@@ -30,7 +30,7 @@ const FVector UEmpathFunctionLibrary::GetAimLocationOnActor(const AActor* Actor,
 const FVector UEmpathFunctionLibrary::GetCenterMassLocationOnActor(const AActor* Actor)
 {
 	// Check if the object is the vr player
-	const AEmpathVRCharacter* VRChar = Cast<AEmpathVRCharacter>(Actor);
+	const AEmpathPlayerCharacter* VRChar = Cast<AEmpathPlayerCharacter>(Actor);
 	if (VRChar)
 	{
 		// Aim at the defined center mass of the vr character

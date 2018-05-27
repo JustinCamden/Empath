@@ -7,7 +7,7 @@
 #include "EnvironmentQuery/Contexts/EnvQueryContext_Item.h"
 #include "EQC_AttackTarget.h"
 #include "EmpathAIController.h"
-#include "EmpathVRCharacter.h"
+#include "EmpathPlayerCharacter.h"
 
 UEmpathEnvQueryTest_Dot::UEmpathEnvQueryTest_Dot(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -174,7 +174,7 @@ void UEmpathEnvQueryTest_Dot::GatherLineDirections(TArray<FVector>& Directions, 
 			AEmpathAIController const* const AI = Cast<AEmpathAIController>(QueryOwner->GetController());
 			if (AI)
 			{
-				AEmpathVRCharacter const* const PlayerAttackTarget = Cast<AEmpathVRCharacter>(AI->GetAttackTarget());
+				AEmpathPlayerCharacter const* const PlayerAttackTarget = Cast<AEmpathPlayerCharacter>(AI->GetAttackTarget());
 				if (PlayerAttackTarget)
 				{
 					APlayerController const* const TargetPC = Cast<APlayerController>(PlayerAttackTarget->GetController());

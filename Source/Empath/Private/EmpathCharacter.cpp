@@ -1,7 +1,7 @@
 // Copyright 2018 Team Empath All Rights Reserved
 
 #include "EmpathCharacter.h"
-#include "EmpathVRCharacter.h"
+#include "EmpathPlayerCharacter.h"
 #include "EmpathAIController.h"
 #include "EmpathDamageType.h"
 #include "EmpathFunctionLibrary.h"
@@ -144,7 +144,7 @@ void AEmpathCharacter::Tick(float DeltaTime)
 float AEmpathCharacter::GetDistanceToVR(const AActor* OtherActor) const
 {
 	// Check if the other actor is a VR character
-	const AEmpathVRCharacter* OtherVRChar = Cast<AEmpathVRCharacter>(OtherActor);
+	const AEmpathPlayerCharacter* OtherVRChar = Cast<AEmpathPlayerCharacter>(OtherActor);
 	if (OtherVRChar)
 	{
 		return (GetActorLocation() - OtherVRChar->GetVRLocation()).Size();
@@ -318,10 +318,10 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 
 	// If the player inflicted this damage, and the player's location was previous unknown,
 	// alert us to their location
-	AEmpathVRCharacter* Player = Cast<AEmpathVRCharacter>(DamageCauser);
+	AEmpathPlayerCharacter* Player = Cast<AEmpathPlayerCharacter>(DamageCauser);
 	if (!Player && EventInstigator)
 	{
-		Player = Cast<AEmpathVRCharacter>(EventInstigator->GetPawn());
+		Player = Cast<AEmpathPlayerCharacter>(EventInstigator->GetPawn());
 	}
 	if (Player)
 	{

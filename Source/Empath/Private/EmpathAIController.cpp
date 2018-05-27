@@ -5,7 +5,7 @@
 #include "EmpathGameModeBase.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BrainComponent.h"
-#include "EmpathVRCharacter.h"
+#include "EmpathPlayerCharacter.h"
 #include "EmpathCharacter.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "EmpathFunctionLibrary.h"
@@ -156,7 +156,7 @@ void AEmpathAIController::SetAttackTarget(AActor* NewTarget)
 		if (NewTarget != OldTarget)
 		{
 			// Unregister delegates on old target
-			AEmpathVRCharacter* OldVRCharTarget = Cast<AEmpathVRCharacter>(OldTarget);
+			AEmpathPlayerCharacter* OldVRCharTarget = Cast<AEmpathPlayerCharacter>(OldTarget);
 			if (OldVRCharTarget)
 			{
 				OldVRCharTarget->OnTeleport.RemoveDynamic(this, &AEmpathAIController::OnAttackTargetTeleported);
@@ -174,7 +174,7 @@ void AEmpathAIController::SetAttackTarget(AActor* NewTarget)
 			}
 
 			// Register delegates on new target
-			AEmpathVRCharacter* NewVRCharTarget = Cast<AEmpathVRCharacter>(NewTarget);
+			AEmpathPlayerCharacter* NewVRCharTarget = Cast<AEmpathPlayerCharacter>(NewTarget);
 			if (NewVRCharTarget)
 			{
 				NewVRCharTarget->OnTeleport.AddDynamic(this, &AEmpathAIController::OnAttackTargetTeleported);
@@ -424,7 +424,7 @@ FVector AEmpathAIController::GetAimLocation() const
 	AActor* const AttackTarget = GetAttackTarget();
 	if (AttackTarget)
 	{
-		AEmpathVRCharacter* VRCharacterTarget = Cast<AEmpathVRCharacter>(AttackTarget);
+		AEmpathPlayerCharacter* VRCharacterTarget = Cast<AEmpathPlayerCharacter>(AttackTarget);
 		if (!(VRCharacterTarget && VRCharacterTarget->IsTeleporting()))
 		{
 			return UEmpathFunctionLibrary::GetAimLocationOnActor(AttackTarget);
@@ -476,7 +476,7 @@ bool AEmpathAIController::IsAIRunning() const
 
 bool AEmpathAIController::IsTargetTeleporting() const
 {
-	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
+	AEmpathPlayerCharacter* VRCharTarget = Cast<AEmpathPlayerCharacter>(GetAttackTarget());
 	if (VRCharTarget && VRCharTarget->IsTeleporting())
 	{
 		return true;
@@ -491,7 +491,7 @@ float AEmpathAIController::GetTimeSinceLastSawAttackTargetTeleport() const
 
 void AEmpathAIController::OnLostPlayerTarget()
 {
-	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
+	AEmpathPlayerCharacter* VRCharTarget = Cast<AEmpathPlayerCharacter>(GetAttackTarget());
 	if (!IsPassive() && VRCharTarget)
 	{
 		ReceiveLostPlayerTarget();
@@ -500,7 +500,7 @@ void AEmpathAIController::OnLostPlayerTarget()
 
 void AEmpathAIController::OnSearchForPlayerStarted()
 {
-	AEmpathVRCharacter* VRCharTarget = Cast<AEmpathVRCharacter>(GetAttackTarget());
+	AEmpathPlayerCharacter* VRCharTarget = Cast<AEmpathPlayerCharacter>(GetAttackTarget());
 	if (!IsPassive() && VRCharTarget)
 	{
 		ReceiveSearchForPlayerStarted();
@@ -680,7 +680,7 @@ void AEmpathAIController::UpdateAttackTarget()
 			if (PlayerController)
 			{
 				// Ensure this is our VR Character and they are not dead
-				AEmpathVRCharacter* const PlayerTarget = Cast<AEmpathVRCharacter>(PlayerController->GetPawn());
+				AEmpathPlayerCharacter* const PlayerTarget = Cast<AEmpathPlayerCharacter>(PlayerController->GetPawn());
 				if (PlayerTarget && !PlayerTarget->IsDead())
 				{
 					float const PlayerScore = GetTargetSelectionScore(PlayerTarget,
@@ -715,7 +715,7 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 	if (World && AttackTarget && AIManager)
 	{
 		// Check is the player is teleporting. If so, we can't see them
-		AEmpathVRCharacter* const PlayerTarget = Cast<AEmpathVRCharacter>(AttackTarget);
+		AEmpathPlayerCharacter* const PlayerTarget = Cast<AEmpathPlayerCharacter>(AttackTarget);
 		if (PlayerTarget && PlayerTarget->IsTeleporting())
 		{
 			SetCanSeeTarget(false);

@@ -1,6 +1,6 @@
 // Copyright 2018 Team Empath All Rights Reserved
 
-#include "EmpathVRCharacter.h"
+#include "EmpathPlayerCharacter.h"
 #include "EmpathPlayerController.h"
 #include "EmpathDamageType.h"
 #include "EmpathFunctionLibrary.h"
@@ -8,7 +8,7 @@
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("Empath VR Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_VRCharacter);
 
-AEmpathVRCharacter::AEmpathVRCharacter(const FObjectInitializer& ObjectInitializer)
+AEmpathPlayerCharacter::AEmpathPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	// Initialize default variables
@@ -33,24 +33,35 @@ AEmpathVRCharacter::AEmpathVRCharacter(const FObjectInitializer& ObjectInitializ
 	DamageCapsule->SetRelativeLocation(FVector(1.75f, 0.0f, -18.5f));
 }
 
-float AEmpathVRCharacter::GetDistanceToVR(AActor* OtherActor) const
+void AEmpathPlayerCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Regen health if appropriate
+	if (bHealthRegenActive && GetWorld()->TimeSince(LastDamageTime) > HealthRegenDelay)
+	{
+		CurrentHealth = FMath::Min((CurrentHealth + (HealthRegenRate * MaxHealth * DeltaTime)), MaxHealth);
+	}
+}
+
+float AEmpathPlayerCharacter::GetDistanceToVR(AActor* OtherActor) const
 {
 	return (GetVRLocation() - OtherActor->GetActorLocation()).Size();
 }
 
-EEmpathTeam AEmpathVRCharacter::GetTeamNum_Implementation() const
+EEmpathTeam AEmpathPlayerCharacter::GetTeamNum_Implementation() const
 {
 	// We should always return player for VR characters
 	return EEmpathTeam::Player;
 }
 
 
-FVector AEmpathVRCharacter::GetCustomAimLocationOnActor_Implementation(FVector LookOrigin, FVector LookDirection) const
+FVector AEmpathPlayerCharacter::GetCustomAimLocationOnActor_Implementation(FVector LookOrigin, FVector LookDirection) const
 {
 	return DamageCapsule->GetComponentLocation();
 }
 
-FVector AEmpathVRCharacter::GetScaledHeightLocation(float HeightScale)
+FVector AEmpathPlayerCharacter::GetScaledHeightLocation(float HeightScale)
 {
 	// Get the scaled height
 	FVector Height = VRReplicatedCamera->GetRelativeTransform().GetLocation();
@@ -63,7 +74,7 @@ FVector AEmpathVRCharacter::GetScaledHeightLocation(float HeightScale)
 	return VRLoc;
 }
 
-FVector AEmpathVRCharacter::GetPawnViewLocation() const
+FVector AEmpathPlayerCharacter::GetPawnViewLocation() const
 {
 	if (VRReplicatedCamera)
 	{
@@ -72,7 +83,7 @@ FVector AEmpathVRCharacter::GetPawnViewLocation() const
 	return Super::GetPawnViewLocation();
 }
 
-FRotator AEmpathVRCharacter::GetViewRotation() const
+FRotator AEmpathPlayerCharacter::GetViewRotation() const
 {
 	if (VRReplicatedCamera)
 	{
@@ -81,7 +92,7 @@ FRotator AEmpathVRCharacter::GetViewRotation() const
 	return Super::GetViewRotation();
 }
 
-AEmpathPlayerController* AEmpathVRCharacter::GetEmpathPlayerCon() const
+AEmpathPlayerController* AEmpathPlayerCharacter::GetEmpathPlayerCon() const
 {
 	if (EmpathPlayerController)
 	{
@@ -90,13 +101,13 @@ AEmpathPlayerController* AEmpathVRCharacter::GetEmpathPlayerCon() const
 	return Cast<AEmpathPlayerController>(GetController());
 }
 
-bool AEmpathVRCharacter::IsTeleporting_Implementation() const
+bool AEmpathPlayerCharacter::IsTeleporting_Implementation() const
 {
 	// TODO: Hook this up with our teleportation script
 	return false;
 }
 
-void AEmpathVRCharacter::TeleportToVR(FVector Destination, float DeltaYaw)
+void AEmpathPlayerCharacter::TeleportToVR(FVector Destination, float DeltaYaw)
 {
 	// Cache variables
 	FVector Origin = GetVRLocation();
@@ -110,12 +121,12 @@ void AEmpathVRCharacter::TeleportToVR(FVector Destination, float DeltaYaw)
 	return;
 }
 
-bool AEmpathVRCharacter::CanDie_Implementation()
+bool AEmpathPlayerCharacter::CanDie_Implementation()
 {
 	return (!bInvincible && !bDead);
 }
 
-void AEmpathVRCharacter::Die(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
+void AEmpathPlayerCharacter::Die(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
 	if (CanDie())
 	{
@@ -145,7 +156,7 @@ void AEmpathVRCharacter::Die(FHitResult const& KillingHitInfo, FVector KillingHi
 	}
 }
 
-float AEmpathVRCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+float AEmpathPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	// Scope these functions for the UE4 profiler
 	SCOPE_CYCLE_COUNTER(STAT_EMPATH_TakeDamage);
@@ -240,28 +251,29 @@ float AEmpathVRCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 	if (ActualDamage >= 0.f)
 	{
 		// Process damage to update health and death state
+		LastDamageTime = GetWorld()->GetTimeSeconds();
 		ProcessFinalDamage(ActualDamage, HitInfo, HitImpulseDir, DamageTypeCDO, EventInstigator, DamageCauser);
 		return ActualDamage;
 	}
 	return 0.0f;
 }
 
-float AEmpathVRCharacter::ModifyAnyDamage_Implementation(float DamageAmount, const AController* EventInstigator, const AActor* DamageCauser, const class UDamageType* DamageType)
+float AEmpathPlayerCharacter::ModifyAnyDamage_Implementation(float DamageAmount, const AController* EventInstigator, const AActor* DamageCauser, const class UDamageType* DamageType)
 {
 	return DamageAmount;
 }
 
-float AEmpathVRCharacter::ModifyPointDamage_Implementation(float DamageAmount, const FHitResult& HitInfo, const FVector& ShotDirection, const AController* EventInstigator, const AActor* DamageCauser, const class UDamageType* DamageTypeCDO)
+float AEmpathPlayerCharacter::ModifyPointDamage_Implementation(float DamageAmount, const FHitResult& HitInfo, const FVector& ShotDirection, const AController* EventInstigator, const AActor* DamageCauser, const class UDamageType* DamageTypeCDO)
 {
 	return DamageAmount;
 }
 
-float AEmpathVRCharacter::ModifyRadialDamage_Implementation(float DamageAmount, const FVector& Origin, const TArray<struct FHitResult>& ComponentHits, float InnerRadius, float OuterRadius, const AController* EventInstigator, const AActor* DamageCauser, const class UDamageType* DamageTypeCDO)
+float AEmpathPlayerCharacter::ModifyRadialDamage_Implementation(float DamageAmount, const FVector& Origin, const TArray<struct FHitResult>& ComponentHits, float InnerRadius, float OuterRadius, const AController* EventInstigator, const AActor* DamageCauser, const class UDamageType* DamageTypeCDO)
 {
 	return DamageAmount;
 }
 
-void AEmpathVRCharacter::ProcessFinalDamage_Implementation(const float DamageAmount, FHitResult const& HitInfo, FVector HitImpulseDir, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser)
+void AEmpathPlayerCharacter::ProcessFinalDamage_Implementation(const float DamageAmount, FHitResult const& HitInfo, FVector HitImpulseDir, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Decrement health and check for death
 	CurrentHealth -= DamageAmount;
@@ -294,7 +306,7 @@ void AEmpathVRCharacter::ProcessFinalDamage_Implementation(const float DamageAmo
 	return;
 }
 
-bool AEmpathVRCharacter::CanBeStunned_Implementation()
+bool AEmpathPlayerCharacter::CanBeStunned_Implementation()
 {
 	return (bStunnable
 		&& !bDead
@@ -302,7 +314,7 @@ bool AEmpathVRCharacter::CanBeStunned_Implementation()
 		&& GetWorld()->TimeSince(LastStunTime) > StunImmunityTimeAfterStunRecovery);
 }
 
-void AEmpathVRCharacter::TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser)
+void AEmpathPlayerCharacter::TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Log stun event
 	StunDamageHistory.Add(FDamageHistoryEvent(StunDamageAmount, -GetWorld()->GetTimeSeconds()));
@@ -346,7 +358,7 @@ void AEmpathVRCharacter::TakeStunDamage(const float StunDamageAmount, const ACon
 	}
 }
 
-void AEmpathVRCharacter::BeStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration)
+void AEmpathPlayerCharacter::BeStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration)
 {
 	if (CanBeStunned())
 	{
@@ -362,16 +374,16 @@ void AEmpathVRCharacter::BeStunned(const AController* StunInstigator, const AAct
 	}
 }
 
-void AEmpathVRCharacter::ReceiveStunned_Implementation(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration)
+void AEmpathPlayerCharacter::ReceiveStunned_Implementation(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration)
 {
 	GetWorldTimerManager().ClearTimer(StunTimerHandle);
 	if (StunDuration > 0.0f)
 	{
-		GetWorldTimerManager().SetTimer(StunTimerHandle, this, &AEmpathVRCharacter::EndStun, StunDuration, false);
+		GetWorldTimerManager().SetTimer(StunTimerHandle, this, &AEmpathPlayerCharacter::EndStun, StunDuration, false);
 	}
 }
 
-void AEmpathVRCharacter::EndStun()
+void AEmpathPlayerCharacter::EndStun()
 {
 	if (bStunned)
 	{
@@ -391,7 +403,7 @@ void AEmpathVRCharacter::EndStun()
 	}
 }
 
-void AEmpathVRCharacter::ReceiveStunEnd_Implementation()
+void AEmpathPlayerCharacter::ReceiveStunEnd_Implementation()
 {
 	return;
 }
