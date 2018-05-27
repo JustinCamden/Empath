@@ -6,6 +6,9 @@
 #include "Engine/DataTable.h"
 #include "EmpathTypes.generated.h"
 
+// Collision definitions
+#define ECC_Damage	ECC_GameTraceChannel1
+
 /**
  Holder for all the custom data types and names used by the engine
  */
@@ -33,10 +36,11 @@ struct FEmpathBBKeys
 	static const FName FleeTargetRadius;
 };
 
-struct FEmpathCollisionrProfileNames
+struct FEmpathCollisionrProfiles
 {
 	static const FName Ragdoll;
 	static const FName PawnIgnoreAll;
+	static const FName DamageCollision;
 };
 
 USTRUCT(BlueprintType)

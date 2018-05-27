@@ -100,23 +100,13 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnAIInitialized"))
 	void ReceiveAIInitalized();
 
-	/** Called when character's health depletes to 0. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|Health")
-	void Die(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
-
-	/** Called when character's health depletes to 0. */
+	/** Called when the character dies or their health depletes to 0. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health", meta = (DisplayName = "Die"))
 	void ReceiveDie(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
-	/** Called when character's health depletes to 0. */
+	/** Called when the character dies or their health depletes to 0. */
 	UPROPERTY(BlueprintAssignable, Category = "Empath|Health")
 	FOnCharacterDeathDelegate OnDeath;
-
-	/** Called when character becomes stunned. If StunDuration <= 0, then stun must be removed by EndStun(). */
-	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
-	void BeStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration = 3.0);
-
-	FTimerHandle StunTimerHandle;
 
 	/** Called when character becomes stunned. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "BeStunned"))
@@ -126,15 +116,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Empath|Combat")
 	FOnCharacterStunnedDelegate OnStunned;
 
-	/** Ends the stun effect on the character. Called automatically at the end of stun duration if it was > 0. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
-	void EndStun();
-
-	/** Called when character becomes stunned. */
+	/** Called when character stops being stunned. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "OnStunEnd"))
 	void ReceiveStunEnd();
 
-	/** Called when character becomes stunned. */
+	/** Called when character stops being stunned. */
 	UPROPERTY(BlueprintAssignable, Category = "Empath|Combat")
 	FOnCharacterStunEndDelegate OnStunEnd;
 
@@ -146,8 +132,21 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnBeginCharacterPhysicsState"))
 	void ReceiveBeginCharacterPhysicsState(EEmpathCharacterPhysicsState NewState);
 
+	/** Called when the character begins ragdolling. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRagdoll"))
+	void ReceiveStartRagdoll();
+
+	/** Called when the character stops ragdolling. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStopRagdoll"))
+	void ReceiveStopRagdoll();
+
+	/** Called when we begin recovering from the ragdoll. By default, calls StopRagdoll. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRecoveryFromRagdoll"))
+	void ReceiveStartRecoverFromRagdoll();
+
+
 	// ---------------------------------------------------------
-	//	Combat
+	//	General Combat
 
 	/** The maximum effective combat range for the character. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
@@ -157,9 +156,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float MinEffectiveDistance;
 
-	/** Whether this character is can ragdoll in principle. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
-	bool bAllowRagdoll;
+
+	// ---------------------------------------------------------
+	//	Stun handling
 
 	/** Whether this character is stunnable in principle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
@@ -168,6 +167,16 @@ public:
 	/** How much the character has to accrue the StunDamageThreshold and become stunned. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float StunTimeThreshold;
+
+	/** Orders the character to be stunned. If StunDuration <= 0, then stun must be removed by EndStun(). */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
+	void BeStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration = 3.0);
+
+	FTimerHandle StunTimerHandle;
+
+	/** Ends the stun effect on the character. Called automatically at the end of stun duration if it was > 0. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Combat")
+	void EndStun();
 
 	/** How much damage needs to be done in the time defined in StunTimeThreshold for the character to become stunned. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
@@ -181,7 +190,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float StunImmunityTimeAfterStunRecovery;
 
-	/** The last time that we were stunned. */
+	/** The last time that this character was stunned. */
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Combat")
 	float LastStunTime;
 
@@ -190,6 +199,7 @@ public:
 
 	/** Checks whether we should become stunned */
 	virtual void TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser);
+
 
 	// ---------------------------------------------------------
 	//	Health and damage
@@ -218,9 +228,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
 	bool bAllowDeathImpulse;
 
-	/** Whether this character should ragdoll on death. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
-	bool bShouldRagdollOnDeath;
+	/** Orders the character to die. Called when the character's health depletes to 0. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Health")
+	void Die(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** How long we should wait after death to clean up / remove the actor from the world. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
@@ -256,6 +266,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Health")
 	void ProcessFinalDamage(const float DamageAmount, FHitResult const& HitInfo, FVector HitImpulseDir, const UDamageType* DamageType, const AController* EventInstigator, const AActor* DamageCauser);
 
+
 	// ---------------------------------------------------------
 	//	Physics
 
@@ -271,30 +282,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
 	bool SetCharacterPhysicsState(EEmpathCharacterPhysicsState NewState);
 
+
+	// ---------------------------------------------------------
+	//	Ragdoll handling
+
+	/** Whether this character is can ragdoll in principle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
+	bool bAllowRagdoll;
+
+	/** Whether this character should ragdoll on death. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Health")
+	bool bShouldRagdollOnDeath;
+
 	/** Signals the character's to begin ragdollizing. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
 	void StartRagdoll();
-
-	/** Called when the character begins ragdolling. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRagdoll"))
-	void ReceiveStartRagdoll();
 
 	/** Signals the character to stop ragdolling. 
 	NewPhysicsState is what we will transition to, since FullRagdoll is done. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
 	void StopRagdoll(EEmpathCharacterPhysicsState NewPhysicsState);
 
-	/** Called when the character stops ragdolling. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStopRagdoll"))
-	void ReceiveStopRagdoll();
-
 	/** Signals the character's to begin recovering from the ragdoll. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Physics")
 	void StartRecoverFromRagdoll();
-
-	/** Called when we begin recovering from the ragdoll. By default, calls StopRagdoll. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRecoveryFromRagdoll"))
-	void ReceiveStartRecoverFromRagdoll();
 
 	/** Physical animation component for controlling the skeletal mesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Physics")

@@ -28,7 +28,7 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 	PrimaryActorTick.bCanEverTick = true;
 
 	// Set default variables
-	MaxHealth = 100.0f;
+	MaxHealth = 10.0f;
 	CurrentHealth = MaxHealth;
 	MaxEffectiveDistance = 250.0f;
 	MinEffectiveDistance = 0.0f;
@@ -40,7 +40,7 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 	bCanTakeFriendlyFire = false;
 	bAllowRagdoll = true;
 	bStunnable = true;
-	StunDamageThreshold = 50.0f;
+	StunDamageThreshold = 5.0f;
 	StunTimeThreshold = 0.5f;
 	StunDurationDefault = 3.0f;
 	StunImmunityTimeAfterStunRecovery = 3.0f;
@@ -260,8 +260,8 @@ void AEmpathCharacter::BeStunned(const AController* StunInstigator, const AActor
 	if (CanBeStunned())
 	{
 		bStunned = true;
-		ReceiveStunned(StunInstigator, StunCauser, StunDuration);
 		LastStunTime = GetWorld()->GetTimeSeconds();
+		ReceiveStunned(StunInstigator, StunCauser, StunDuration);
 		AEmpathAIController* EmpathAICon = GetEmpathAICon();
 		if (EmpathAICon)
 		{
@@ -474,7 +474,7 @@ float AEmpathCharacter::GetPerBoneDamageScale(FName BoneName) const
 		}
 	}
 
-	// By default, return 1.0f (umodified damage sale)
+	// By default, return 1.0f (umodified damage scale)
 	return 1.0f;
 }
 
@@ -664,12 +664,12 @@ void AEmpathCharacter::StartRagdoll()
 		{
 			// Update physics state
 			SetCharacterPhysicsState(EEmpathCharacterPhysicsState::FullRagdoll);
-			MyMesh->SetCollisionProfileName(FEmpathCollisionrProfileNames::Ragdoll);
+			MyMesh->SetCollisionProfileName(FEmpathCollisionrProfiles::Ragdoll);
 
 			// We set the capsule to ignore all interactions rather than turning off collision completely, 
 			// since there's a good chance we will get back up,
 			//and the physics state would have to be recreated again.
-			GetCapsuleComponent()->SetCollisionProfileName(FEmpathCollisionrProfileNames::PawnIgnoreAll);
+			GetCapsuleComponent()->SetCollisionProfileName(FEmpathCollisionrProfiles::PawnIgnoreAll);
 			bRagdolling = true;
 
 			// If we're not dead, start timer for getting back up

@@ -14,5 +14,6 @@ const FName FEmpathBBKeys::DefendPursuitRadius(TEXT("DefendPursuitRadius"));
 const FName FEmpathBBKeys::FleeTarget(TEXT("FleeTarget"));
 const FName FEmpathBBKeys::FleeTargetRadius(TEXT("FleeTargetRadius"));
 
-const FName FEmpathCollisionrProfileNames::Ragdoll(TEXT("Ragdoll"));
-const FName FEmpathCollisionrProfileNames::PawnIgnoreAll(TEXT("PawnIgnoreAll"));
+const FName FEmpathCollisionrProfiles::Ragdoll(TEXT("Ragdoll"));
+const FName FEmpathCollisionrProfiles::PawnIgnoreAll(TEXT("PawnIgnoreAll"));
+const FName FEmpathCollisionrProfiles::DamageCollision(TEXT("DamageCollision"));

@@ -32,7 +32,7 @@ AEmpathAIManager::AEmpathAIManager()
 	StartSearchingTimeThreshold = 3.0f;
 }
 
-void AEmpathAIManager::OnPlayerDied()
+void AEmpathAIManager::OnPlayerDied(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
 	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
 	OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);

@@ -220,7 +220,7 @@ public:
 
 	/** Called when the current attack target dies */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnAttackTargetDied"))
-	void ReceiveAttackTargetDied();
+	void ReceiveAttackTargetDied(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the attack target teleports. */
 	void OnAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
@@ -229,6 +229,7 @@ public:
 	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "OnAttackTargetTeleported"))
 	void ReceiveAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
 
+	/** Called when the controlled character dies. */
 	void OnCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the controlled character dies. */

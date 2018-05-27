@@ -30,7 +30,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	void OnPlayerTeleported(AActor* Player, FVector Origin, FVector Destination);
-	void OnPlayerDied();
+	void OnPlayerDied(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 	void OnLostPlayerTimerExpired();
 
 	// Returns the non-player attack targets in the scene

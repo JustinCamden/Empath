@@ -14,7 +14,16 @@ class EMPATH_API AEmpathPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 	
+public:
+	/** Called when the controlled VR character becomes stunned. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|VRCharacter", meta = (DisplayName = "OnCharacterStunned"))
+	void ReceiveCharacterStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration);
+
+	/** Called when the controlled VR character is no longer stunned. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|VRCharacter", meta = (DisplayName = "OnCharacterStunEnd"))
+	void ReceiveCharacterStunEnd();
 	
-	
-	
+	/** Called when the controlled VR character dies. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|VRCharacter", meta = (DisplayName = "OnCharacterStunEnd"))
+	void ReceiveCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 };
