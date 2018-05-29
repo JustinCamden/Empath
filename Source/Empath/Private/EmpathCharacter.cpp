@@ -8,6 +8,7 @@
 #include "EmpathAIManager.h"
 #include "PhysicsEngine/PhysicalAnimationComponent.h"
 #include "EmpathCharacterMovementComponent.h"
+#include "EmpathPathFollowingComponent.h"
 
 
 // Stats for UE Profiler
@@ -889,4 +890,37 @@ bool AEmpathCharacter::DoJump(FVector GroundDestination, float JumpArc, float Pa
 	}
 
 	return bSuccess;
+}
+
+void AEmpathCharacter::RefreshPathingSpeedData()
+{
+	// Inform AI that the accel / deccel may have changed
+	AEmpathAIController* const AI = GetEmpathAICon();
+	if (AI)
+	{
+		UEmpathPathFollowingComponent* const PFC = Cast<UEmpathPathFollowingComponent>(AI->GetPathFollowingComponent());
+		if (PFC)
+		{
+			PFC->OnDecelerationPossiblyChanged();
+		}
+	}
+}
+
+
+void AEmpathCharacter::SetWalkingSpeedData(float WalkingSpeed, float WalkingBrakingDeceleration)
+{
+	UCharacterMovementComponent* const CMC = GetCharacterMovement();
+	if (CMC)
+	{
+		if (WalkingSpeed >= 0.f)
+		{
+			CMC->MaxWalkSpeed = WalkingSpeed;
+		}
+
+		if (WalkingBrakingDeceleration >= 0.f)
+		{
+			CMC->BrakingDecelerationWalking = WalkingBrakingDeceleration;
+			RefreshPathingSpeedData();
+		}
+	}
 }
