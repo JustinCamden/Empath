@@ -1,11 +1,11 @@
 // Copyright 2018 Team Empath All Rights Reserved
 
-#include "KinematicVelocityComponent.h"
+#include "EmpathKinematicVelocityComponent.h"
 #include "Runtime/Engine/Public/EngineUtils.h"
 
 
 // Sets default values for this component's properties
-UKinematicVelocityComponent::UKinematicVelocityComponent()
+UEmpathKinematicVelocityComponent::UEmpathKinematicVelocityComponent()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
@@ -20,7 +20,7 @@ UKinematicVelocityComponent::UKinematicVelocityComponent()
 
 
 // Called when the game starts
-void UKinematicVelocityComponent::BeginPlay()
+void UEmpathKinematicVelocityComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -29,18 +29,18 @@ void UKinematicVelocityComponent::BeginPlay()
 	{
 		SetComponentTickEnabled(false);
 	}
-	
+
 }
 
 
 // Called every frame
-void UKinematicVelocityComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UEmpathKinematicVelocityComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	CalculateKinematicVelocity();
 }
 
-void UKinematicVelocityComponent::Activate(bool bReset)
+void UEmpathKinematicVelocityComponent::Activate(bool bReset)
 {
 	Super::Activate(bReset);
 
@@ -54,7 +54,7 @@ void UKinematicVelocityComponent::Activate(bool bReset)
 	}
 }
 
-void UKinematicVelocityComponent::Deactivate()
+void UEmpathKinematicVelocityComponent::Deactivate()
 {
 	Super::Deactivate();
 
@@ -70,7 +70,7 @@ void UKinematicVelocityComponent::Deactivate()
 	}
 }
 
-void UKinematicVelocityComponent::CalculateKinematicVelocity()
+void UEmpathKinematicVelocityComponent::CalculateKinematicVelocity()
 {
 	// Archive old kinematic velocity
 	LastKinematicVelocity = CurrentKinematicVelocity;

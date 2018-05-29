@@ -11,9 +11,15 @@
 // Stat groups for UE Profiler
 DECLARE_STATS_GROUP(TEXT("EmpathAICon"), STATGROUP_EMPATH_AICon, STATCAT_Advanced);
 
+// Delegates
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FOnAIJumpToDelegate, AEmpathAIController*, AIController, FVector, LaunchVelocity, FVector, StartLocation, FVector, EndLocation, const AActor*, JumpFromActor);
+
+// Forward declarations
 class AEmpathAIManager;
 class AEmpathCharacter;
 class AEmpathPlayerCharacter;
+class AEmpathNavLinkProxy;
+class AEmpathNavLinkProxy_Jump;
 
 /**
 *
@@ -38,17 +44,16 @@ public:
 	/** Constructor like behavior. */
 	AEmpathAIController(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-	/** Override for BeginPlay to register delegates on the VR Character. */
 	virtual void BeginPlay() override;
-
-	/** Override for EndPlay that enures we are unregistered with the AI manager. */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void UnPossess() override;
 
 	/** Registers this AI controller with the AI Manager. */
 	void RegisterAIManager(AEmpathAIManager* RegisteredAIManager);
 
 	/** Returns whether we have registered with the AI Manager. */
 	bool IsRegisteredWithAIManager() { return (AIManager != nullptr); }
+
 
 	// ---------------------------------------------------------
 	//	TeamAgent Interface
@@ -178,6 +183,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	float GetTimeSinceLastSawAttackTargetTeleport() const;
 
+	/** Returns true if this AI is currently moving on a custom nav link (climb, jump, etc), or false otherwise. */
+	UFUNCTION(BlueprintCallable, Category = "Empath}AI")
+	bool IsUsingCustomNavLink() const;
+
+	/** Returns true if the upcoming path contains a jump. */
+	UFUNCTION(BlueprintCallable, Category = "AI")
+	bool CurrentPathHasUpcomingJumpLink() const;
+
 	// ---------------------------------------------------------
 	//	Events and receives
 
@@ -205,7 +218,7 @@ public:
 
 	/** Override that updates the Blackboard with our goal location when successful, and that binds OnBump to our character's capsule collisions. */
 	virtual FPathFollowingRequestResult MoveTo(const FAIMoveRequest& MoveRequest,
-		FNavPathSharedPtr* OutPath) override;
+	FNavPathSharedPtr* OutPath) override;
 
 	/** Called when this AI has made a successful move request. */
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Empath|AI", meta = (DisplayName = "OnTargetSpotted"))
@@ -244,6 +257,7 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterStunEnd"))
 	void ReceiveCharacterStunEnd();
 
+
 	// ---------------------------------------------------------
 	//	State flow / Commands
 
@@ -254,6 +268,60 @@ public:
 	/** Alerts us that the target has been spotted, and updates the AI manager as to its location. */
 	void UpdateKnownTargetLocation(AActor const* AITarget);
 
+	/** Fires the OnAIInitialized event on the Empath Character. */
+	virtual bool RunBehaviorTree(UBehaviorTree* BTAsset) override;
+
+
+	// ---------------------------------------------------------
+	//	Navigation and Movement
+
+	/**
+	* Starts a climb action.
+	* @param LedgeTransform is the transform of the very edge of the ledge, facing the direction the character will face when climbing.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|AI")
+	void ClimbTo(FTransform const& LedgeTransform);
+
+	/** Signals the end of a climb segment and resumes normal navigation. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void FinishClimb();
+
+	/**
+	* Starts a jump action.
+	* @param Arc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "AI")
+	void JumpTo(FTransform const& Destination, float Arc = 0.5f, const AActor* JumpFromActor = nullptr);
+
+	/**
+	* Does the actual launch of the AI's character. Returns a boolean indicating whether the jump is successful, and if so fills in the predicted ascent/descent times.
+	* @param Arc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	bool DoJumpLaunch(FTransform const& Destination, float Arc, const AActor* JumpFromActor, float& AscendingTime, float& DescendingTime);
+
+	/**
+	* Does the jump launch, assuming the velocity has already been computed with SuggestProjectileVelocity_CustomArc(). Mainly for performance to avoid doing that twice.
+	* @param Arc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	bool DoJumpLaunchWithPrecomputedVelocity(FTransform const& Destination, FVector LaunchVelocity, float Arc, const AActor* JumpFromActor, float& AscendingTime, float& DescendingTime);
+
+	/* 
+	* Gets movement info for properly animating a jump.
+	* Returns false if the upcoming path contains no jump link. 
+	* Intentionally impure for efficiency. 
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	bool GetUpcomingJumpLinkAnimInfo(float& PathDistToJumpLink, float& EntryAngle, float& JumpDistance, float& PathDistAfterJumpLink, float& ExitAngle);
+
+	/** Gets the next jump link in the path. */
+	AEmpathNavLinkProxy_Jump* GetUpcomingJumpLink() const;
+
+	/** Called when the AI jumps to a location. */
+	UPROPERTY(BlueprintAssignable, Category = "Empath|AI")
+	FOnAIJumpToDelegate OnAIJumpTo;
+
 	/** Exposes pausing movement along the path. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void PausePathFollowing();
@@ -262,12 +330,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void ResumePathFollowing();
 
-	/** Fires the OnAIInitialized event on the Empath Character. */
-	virtual bool RunBehaviorTree(UBehaviorTree* BTAsset) override;
-
 	/** Asks this AI to move. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void RequestReposition() { bShouldReposition = true; };
+
+
+	/** Whether this AI should automatically claim navlinks when moving. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	bool bClaimNavLinksOnMove;
+
+	/** Claims all nav links on the current path, prohibiting their use by other AIs. */
+	void ClaimAllNavLinksOnPath();
+
+	/** All currently claimed nav links. */
+	UPROPERTY(transient)
+	TArray<AEmpathNavLinkProxy*> ClaimedNavLinks;
+
+	/** Releases claim on a specific nav link, allowing it to be used by other controllers. */
+	void ReleaseNavLinkClaim(AEmpathNavLinkProxy* NavLink);
+
+	/** Releases claims on all claimed nav links. */
+	void ReleaseAllClaimedNavLinks();
 
 	// ---------------------------------------------------------
 	//	Behavior modes
@@ -412,7 +495,7 @@ protected:
 	void OnLOSTraceComplete(const FTraceHandle& TraceHandle, FTraceDatum& TraceDatum);
 
 	// ---------------------------------------------------------
-	//	Obstance avoidance
+	//	Obstacle avoidance
 
 	/** Whether we should detect bumping into other Empath Characters and ask them to move. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Empath|AI")
@@ -460,11 +543,14 @@ protected:
 	// ---------------------------------------------------------
 	//	Misc functions and properties
 
-	/* Time we last saw the attack target teleport*/
+	/* Time we last saw the attack target teleports. */
 	float LastSawAttackTargetTeleportTime;
 
 	/** Cleans up this AI controller from the list maintained in the AI Manager */
 	void UnregisterAIManager();
+
+	/** Performs the actual jump launch, with different variations depending on whether we precomputed our velocity. */
+	bool DoJumpLaunch_Internal(FTransform const& Destination, float Arc, const FVector* LaunchVel, const AActor* JumpFromActor, float& AscendingTime, float& DescendingTime);
 
 private:
 	/** The AI manager we grabbed when spawning. */
@@ -475,4 +561,5 @@ private:
 
 	/** Stored reference to the Empath Character we control */
 	AEmpathCharacter* CachedEmpathChar;
+
 };

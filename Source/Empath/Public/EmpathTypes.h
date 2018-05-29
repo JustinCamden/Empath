@@ -213,3 +213,11 @@ public:
 		FrameTimeStamp(InEventTimestamp)
 	{}
 };
+
+namespace EmpathNavAreaFlags
+{
+	const int16 Navigable = (1 << 1);		// this one is defined by the system
+	const int16 Climb = (1 << 2);
+	const int16 Jump = (1 << 3);
+	const int16 Fly = (1 << 4);
+};

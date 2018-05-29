@@ -11,11 +11,14 @@
 #include "EmpathFunctionLibrary.h"
 #include "DrawDebugHelpers.h"
 #include "Runtime/Engine/Public/EngineUtils.h"
-
+#include "EmpathPathFollowingComponent.h"
+#include "AI/Navigation/NavLinkCustomComponent.h"
+#include "EmpathNavLinkProxy_Jump.h"
 
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("AI Update Attack Target"), STAT_EMPATH_UpdateAttackTarget, STATGROUP_EMPATH_AICon);
 DECLARE_CYCLE_STAT(TEXT("AI Update Vision"), STAT_EMPATH_UpdateVision, STATGROUP_EMPATH_AICon);
+DECLARE_CYCLE_STAT(TEXT("AI Jump Anim Calculation"), STAT_EMPATH_JumpAnim, STATGROUP_EMPATH_AICon);
 
 // Cannot statics in class initializer so initialize here
 const float AEmpathAIController::MinTargetSelectionScore = -9999999.0f;
@@ -25,7 +28,8 @@ const float AEmpathAIController::MinDefensePursuitRadius = 150.f;
 const float AEmpathAIController::MinFleeTargetRadius = 100.f;
 
 AEmpathAIController::AEmpathAIController(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
+	: Super(ObjectInitializer
+		.SetDefaultSubobjectClass<UEmpathPathFollowingComponent>(TEXT("PathFollowingComponent")))
 {
 	Team = EEmpathTeam::Enemy;
 
@@ -55,9 +59,12 @@ AEmpathAIController::AEmpathAIController(const FObjectInitializer& ObjectInitial
 
 	// Navigation variables
 	bDetectStuckAgainstOtherAI = true;
-	static int32 MinCapsuleBumpsBeforeRepositioning = 10;
-	static float MaxTimeBetweenConsecutiveBumps = 0.2f;
+	MinCapsuleBumpsBeforeRepositioning = 10;
+	MaxTimeBetweenConsecutiveBumps = 0.2f;
 	TimeOnPathUntilRepath = 15.0f;
+
+	// Movement variables
+	bClaimNavLinksOnMove = true;
 
 
 	// Turn off perception component for performance, since we don't use it and don't want it ticking
@@ -92,12 +99,19 @@ void AEmpathAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	UnregisterAIManager();
 }
 
+void AEmpathAIController::UnPossess()
+{
+	UnregisterAIManager();
+	ReleaseAllClaimedNavLinks();
+	Super::UnPossess();
+}
+
 void AEmpathAIController::RegisterAIManager(AEmpathAIManager* RegisteringAIManager)
 {
 	if (!AIManager && RegisteringAIManager)
 	{
 		AIManager = RegisteringAIManager;
-		AIManagerIndex = AIManager->EmpathAICons.Add(this);
+		AIManagerIndex = AIManager->EmpathAICons.AddUnique(this);
 	}
 }
 
@@ -537,6 +551,21 @@ FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& Mo
 	{
 		ReceiveMoveTo(GoalLocation);
 
+		// OnAIMoveTo can may deceleration values, such as when choosing to walk or run.
+		// We need to warn path following component so it can re-run the code to cache various deceleration-related data.
+		UEmpathPathFollowingComponent* const PFC = Cast<UEmpathPathFollowingComponent>(GetPathFollowingComponent());
+		if (PFC)
+		{
+			PFC->OnDecelerationPossiblyChanged();
+		}
+
+		// Release any currently claimed nav links and claim all new ones on the path
+		if (bClaimNavLinksOnMove)
+		{
+			ReleaseAllClaimedNavLinks();
+			ClaimAllNavLinksOnPath();
+		}
+
 		// Bind capsule bump detection while not moving.
 		if (bDetectStuckAgainstOtherAI)
 		{
@@ -553,6 +582,9 @@ FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& Mo
 
 void AEmpathAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
 {
+	// Release any claimed nav links
+	ReleaseAllClaimedNavLinks();
+
 	// Unbind capsule bump detection while not moving
 	AEmpathCharacter*EmpathChar = GetEmpathChar();
 	UCapsuleComponent* const MyPawnCapsule = EmpathChar ? EmpathChar->GetCapsuleComponent() : nullptr;
@@ -1232,6 +1264,9 @@ void AEmpathAIController::OnCharacterDeath(FHitResult const& KillingHitInfo, FVe
 	// Remove ourselves from the AI manager
 	UnregisterAIManager();
 
+	// Release nav links
+	ReleaseAllClaimedNavLinks();
+
 	// Clear our attack target
 	SetAttackTarget(nullptr);
 
@@ -1267,4 +1302,279 @@ void AEmpathAIController::UnregisterAIManager()
 		AIManager = nullptr;
 	}
 	return;
+}
+
+void AEmpathAIController::ClimbTo_Implementation(FTransform const& LedgeTransform)
+{
+	// This is just here so that if we want to create an inherited c++ class with its own climb to function, 
+	// we can do that
+	return;
+}
+
+void AEmpathAIController::FinishClimb()
+{
+	// Signal our path following component to continue on to the next segment.
+	UEmpathPathFollowingComponent* const PFC = Cast<UEmpathPathFollowingComponent>(GetPathFollowingComponent());
+	if (PFC)
+	{
+		PFC->AdvanceToNextMoveSegment();
+		PFC->FinishUsingCustomLink(Cast<UNavLinkCustomComponent>(PFC->GetCurrentCustomLinkOb()));
+	}
+
+	ResumePathFollowing();
+}
+
+void AEmpathAIController::JumpTo_Implementation(FTransform const& Destination, float Arc, const AActor* JumpFromActor)
+{
+	float OutAscentTime;
+	float OutDescentTime;
+	DoJumpLaunch(Destination, Arc, JumpFromActor, OutAscentTime, OutDescentTime);
+}
+
+bool AEmpathAIController::DoJumpLaunch(FTransform const& Destination, float Arc, const AActor* JumpFromActor, float& OutAscendingTime, float& OutDescendingTime)
+{
+	return DoJumpLaunch_Internal(Destination, Arc, nullptr, JumpFromActor, OutAscendingTime, OutDescendingTime);
+}
+
+bool AEmpathAIController::DoJumpLaunchWithPrecomputedVelocity(FTransform const& Destination, FVector LaunchVelocity, float Arc, const AActor* JumpFromActor, float& OutAscendingTime, float& OutDescendingTime)
+{
+	return DoJumpLaunch_Internal(Destination, Arc, &LaunchVelocity, JumpFromActor, OutAscendingTime, OutDescendingTime);
+}
+
+bool AEmpathAIController::DoJumpLaunch_Internal(FTransform const& Destination, float Arc, const FVector* InLaunchVel, const AActor* JumpFromActor, float& OutAscendingTime, float& OutDescendingTime)
+{
+	bool bSuccess = false;
+	OutAscendingTime = 0.f;
+	OutDescendingTime = 0.f;
+
+	ACharacter* const AIChar = Cast<ACharacter>(GetPawn());
+	if (AIChar)
+	{
+		// Calculate launch direction
+		FVector const StartLoc = AIChar->GetActorLocation();
+		FVector const DestLoc = Destination.GetLocation();
+
+		// Calculation launch velocity if it was not passed to us
+		FVector LaunchVel;
+		if (InLaunchVel == nullptr)
+		{
+			// Compute LaunchVel
+			if (!UEmpathFunctionLibrary::SuggestProjectileVelocity(AIChar, LaunchVel, StartLoc, DestLoc, Arc))
+			{
+				// Return false if we didn't hit the destination
+				return false;
+			}
+		}
+
+		// Otherwise use the provided launch velocity
+		else
+		{
+			LaunchVel = *InLaunchVel;
+		}
+
+		// Launch the character and update out variables
+		AIChar->LaunchCharacter(LaunchVel, true, true);
+		OnAIJumpTo.Broadcast(this, LaunchVel, StartLoc, DestLoc, JumpFromActor);
+		UEmpathFunctionLibrary::CalculateJumpTimings(this, LaunchVel, StartLoc, DestLoc, OutAscendingTime, OutDescendingTime);
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
+void AEmpathAIController::ClaimAllNavLinksOnPath()
+{
+	UEmpathPathFollowingComponent* const PFC = Cast<UEmpathPathFollowingComponent>(GetPathFollowingComponent());
+	if (PFC)
+	{
+		// If the path is valid
+		UNavigationSystem* const NavSys = UNavigationSystem::GetCurrent(GetWorld());
+		const FNavPathSharedPtr& NewPath = PFC->GetPath();
+		if (NewPath.IsValid())
+		{
+			// Loop through all nav links on the path and claim them
+			TArray<FNavPathPoint>& PathPoints = NewPath->GetPathPoints();
+			for (int32 Idx = 0; Idx < PathPoints.Num(); ++Idx)		// note start at next idx -- only return true for upcoming jumps
+			{
+				FNavPathPoint const& PathPt = PathPoints[Idx];
+				INavLinkCustomInterface* const CustomNavLink = NavSys->GetCustomLink(PathPt.CustomLinkId);
+				UObject* const NavLinkComp = CustomNavLink ? CustomNavLink->GetLinkOwner() : nullptr;
+				AEmpathNavLinkProxy* const EmpathNavLink = NavLinkComp ? Cast<AEmpathNavLinkProxy>(NavLinkComp->GetOuter()) : nullptr;
+				if (EmpathNavLink)
+				{
+					EmpathNavLink->Claim(this);
+					ClaimedNavLinks.AddUnique(EmpathNavLink);
+				}
+			}
+		}
+	}
+}
+
+void AEmpathAIController::ReleaseNavLinkClaim(AEmpathNavLinkProxy* NavLink)
+{
+	if (NavLink)
+	{
+		NavLink->BeginReleaseClaim();
+		ClaimedNavLinks.RemoveSwap(NavLink);
+	}
+}
+
+void AEmpathAIController::ReleaseAllClaimedNavLinks()
+{
+	for (AEmpathNavLinkProxy* NavLink : ClaimedNavLinks)
+	{
+		if (NavLink)
+		{
+			NavLink->BeginReleaseClaim(true);
+		}
+	}
+
+	ClaimedNavLinks.Reset();
+}
+
+bool AEmpathAIController::IsUsingCustomNavLink() const
+{
+	UPathFollowingComponent const* const PFC = GetPathFollowingComponent();
+	return (PFC && PFC->GetCurrentCustomLinkOb() != nullptr);
+}
+
+bool AEmpathAIController::CurrentPathHasUpcomingJumpLink() const
+{
+	return (GetUpcomingJumpLink() != nullptr);
+}
+
+AEmpathNavLinkProxy_Jump* AEmpathAIController::GetUpcomingJumpLink() const
+{
+	UEmpathPathFollowingComponent* const PFC = Cast<UEmpathPathFollowingComponent>(GetPathFollowingComponent());
+	if (PFC)
+	{
+		// Check if the upcoming path is valid
+		int32 const NextPathIndex = PFC->GetNextPathIndex();
+		UNavigationSystem* const NavSys = UNavigationSystem::GetCurrent(GetWorld());
+		const FNavPathSharedPtr& NewPath = PFC->GetPath();
+		if (NewPath.IsValid())
+		{
+			// Iterate through the the path points and check for a jump link
+			TArray<FNavPathPoint>& PathPoints = NewPath->GetPathPoints();
+			for (int32 Idx = NextPathIndex; Idx < PathPoints.Num(); ++Idx)		// note start at next idx -- only return true for upcoming jumps
+			{
+				FNavPathPoint const& PathPt = PathPoints[Idx];
+				INavLinkCustomInterface* const CustomNavLink = NavSys->GetCustomLink(PathPt.CustomLinkId);
+				UObject* const NavLinkComp = CustomNavLink ? CustomNavLink->GetLinkOwner() : nullptr;
+				AEmpathNavLinkProxy_Jump* const JumpLink = NavLinkComp ? Cast<AEmpathNavLinkProxy_Jump>(NavLinkComp->GetOuter()) : nullptr;
+				if (JumpLink)
+				{
+					// Return the first jump link we find.
+					return JumpLink;
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+
+bool AEmpathAIController::GetUpcomingJumpLinkAnimInfo(float& OutPathDistToJumpLink, float& OutEntryAngle, float& OutJumpDistance, float& OutPathDistAfterJumpLink, float& OutExitAngle)
+{
+	// Track how long it takes to complete this function for the profiler
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_JumpAnim);
+
+	// Reset in variables
+	OutPathDistToJumpLink = 0.f;
+	OutEntryAngle = 0.f;
+	OutJumpDistance = 0.f;
+	OutPathDistAfterJumpLink = 0.f;
+	OutExitAngle = 0.f;
+
+	UEmpathPathFollowingComponent* const PFC = Cast<UEmpathPathFollowingComponent>(GetPathFollowingComponent());
+	if (PFC)
+	{
+		// Initialize variables
+		FVector const CurrentPathLoc = PFC->GetLocationOnPath();
+		int32 NextPathIndex = PFC->GetNextPathIndex();
+		float PathDistBeforeJumpLink = 0.f;
+		float PathDistOnJumpLink = 0.f;
+		float PathDistAfterJumpLink = 0.f;
+
+		// Check that the path is valid
+		UNavigationSystem* const NavSys = UNavigationSystem::GetCurrent(GetWorld());
+		const FNavPathSharedPtr& NewPath = PFC->GetPath();
+		if (NewPath.IsValid())
+		{
+			// Iterate through the upcoming nav points for a jump link
+			TArray<FNavPathPoint>& PathPoints = NewPath->GetPathPoints();
+			FVector PrevLoc = CurrentPathLoc;
+			bool bAfterJumpLink = false;
+			bool bPrevWasJumpLink = false;
+			int32 JumpLinkIdx = INDEX_NONE;
+			for (int32 Idx = NextPathIndex; Idx < PathPoints.Num(); ++Idx)
+			{
+				FNavPathPoint const& PathPt = PathPoints[Idx];
+
+				// If we found a jump link
+				AEmpathNavLinkProxy_Jump* JumpLink = nullptr;
+				if (JumpLinkIdx == INDEX_NONE)
+				{
+					// There could be  multiple jump links on remaining path,  but we only care about the next one
+					INavLinkCustomInterface* const CustomNavLink = NavSys->GetCustomLink(PathPt.CustomLinkId);
+					UObject* const NavLinkComp = CustomNavLink ? CustomNavLink->GetLinkOwner() : nullptr;
+					JumpLink = NavLinkComp ? Cast<AEmpathNavLinkProxy_Jump>(NavLinkComp->GetOuter()) : nullptr;
+					if (JumpLink)
+					{
+						JumpLinkIdx = Idx;
+					}
+				}
+
+				// Get the distance after the jump link
+				float const PathSegmentLength = (PathPt.Location - PrevLoc).Size();
+				if (bAfterJumpLink)
+				{
+					PathDistAfterJumpLink += PathSegmentLength;
+				}
+				else if (bPrevWasJumpLink)
+				{
+					bAfterJumpLink = true;
+					PathDistOnJumpLink = PathSegmentLength;
+				}
+				else
+				{
+					PathDistBeforeJumpLink += PathSegmentLength;
+				}
+
+				// Update variables for next loop
+				PrevLoc = PathPt.Location;
+				bPrevWasJumpLink = JumpLink != nullptr;
+			}
+
+			// If we didn't find a jump, return false
+			if (JumpLinkIdx == INDEX_NONE)
+			{
+				return false;
+			}
+
+			// Calculation directions pre, during, and post jump
+			FVector const PreJumpSegmentDirNorm = (PathPoints[JumpLinkIdx].Location - PathPoints[JumpLinkIdx - 1].Location).GetSafeNormal2D();
+			FVector const JumpSegmentDirNorm = (PathPoints[JumpLinkIdx + 1].Location - PathPoints[JumpLinkIdx].Location).GetSafeNormal2D();
+			FVector const PostJumpSegmentDirNorm = PathPoints.IsValidIndex(JumpLinkIdx + 2) ?
+				(PathPoints[JumpLinkIdx + 2].Location - PathPoints[JumpLinkIdx + 1].Location).GetSafeNormal2D()
+				: JumpSegmentDirNorm;
+
+			// Calculation entry angle
+			float EntryDot = PreJumpSegmentDirNorm | JumpSegmentDirNorm;
+			float ExitDot = JumpSegmentDirNorm | PostJumpSegmentDirNorm;
+
+			// Update out variables
+			OutPathDistToJumpLink = PathDistBeforeJumpLink;
+			OutEntryAngle = FMath::RadiansToDegrees(FMath::Acos(EntryDot));
+			OutJumpDistance = PathDistOnJumpLink;
+			OutPathDistAfterJumpLink = PathDistAfterJumpLink;
+			OutExitAngle = FMath::RadiansToDegrees(FMath::Acos(ExitDot));
+
+			return true;
+		}
+	}
+
+	return false;
+
 }

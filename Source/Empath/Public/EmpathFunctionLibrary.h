@@ -5,7 +5,11 @@
 #include "CoreMinimal.h"
 #include "EmpathTeamAgentInterface.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "EmpathFunctionLibrary.generated.h"
+
+// Stat groups for UE Profiler
+DECLARE_STATS_GROUP(TEXT("Empath Function Library"), STATGROUP_EMPATH_FunctionLibrary, STATCAT_Advanced);
 
 class AEmpathAIManager;
 
@@ -82,4 +86,26 @@ public:
 	/** Gets how far one vector (such as velocity) travels along a unit direction vector (such as world up). Automatically normalizes the directional vector. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility")
 	static const float GetMagnitudeInDirection(const FVector Vector, const FVector Direction);
+
+	/**
+	* Returns true if it hit something.
+	* @param OutPathPositions			Predicted projectile path. Ordered series of positions from StartPos to the end. Includes location at point of impact if it hit something.
+	* @param OutHit						Predicted hit result, if the projectile will hit something
+	* @param OutLastTraceDestination	Goal position of the final trace it did. Will not be in the path if there is a hit.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath|Utility", meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "ActorsToIgnore", AdvancedDisplay = "DrawDebugTime, DrawDebugType", TraceChannel = ECC_WorldDynamic, bTracePath = true))
+	static bool PredictProjectilePath(const UObject* WorldContextObject, FHitResult& OutHit, TArray<FVector>& OutPathPositions, FVector& OutLastTraceDestination, FVector StartPos, FVector LaunchVelocity, bool bTracePath, float ProjectileRadius, const TArray<TEnumAsByte<EObjectTypeQuery> >& ObjectTypes, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, float DrawDebugTime, float SimFrequency = 30.f, float MaxSimTime = 2.f);
+
+	/**
+	* Returns the launch velocity needed for a projectile at rest at StartPos to land on EndPos.
+	* @param Arc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
+	* Projectile launch speed is variable and unconstrained.
+	* Does no tracing.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath|Utility", meta = (WorldContext = "WorldContextObject"))
+	static bool SuggestProjectileVelocity(const UObject* WorldContextObject, FVector& OutLaunchVelocity, FVector StartPos, FVector EndPos, float Arc = 0.5f);
+
+	/** Determines the ascent and descent time of a jump. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility", meta = (WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
+	static void CalculateJumpTimings(UObject* WorldContextObject, FVector LaunchVelocity, FVector StartLocation, FVector EndLocation, float& OutAscendingTime, float& OutDescendingTime);
 };

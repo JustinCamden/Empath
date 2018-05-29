@@ -7,6 +7,7 @@
 #include "EmpathFunctionLibrary.h"
 #include "EmpathAIManager.h"
 #include "PhysicsEngine/PhysicalAnimationComponent.h"
+#include "EmpathCharacterMovementComponent.h"
 
 
 // Stats for UE Profiler
@@ -22,7 +23,8 @@ const float AEmpathCharacter::RagdollRestThreshold_AverageBodyMax = 75.f;
 
 // Sets default values
 AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
-	:Super(ObjectInitializer)
+	:Super(ObjectInitializer
+	.SetDefaultSubobjectClass<UEmpathCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
 	// Enable tick events on this character
 	PrimaryActorTick.bCanEverTick = true;
@@ -805,4 +807,86 @@ void AEmpathCharacter::StopRagdoll(EEmpathCharacterPhysicsState NewPhysicsState)
 		bRagdolling = false;
 		ReceiveStopRagdoll();
 	}
+}
+
+FVector AEmpathCharacter::GetPathingSourceLocation() const
+{
+	FVector AgentLocation = FNavigationSystem::InvalidLocation;
+	if (UEmpathCharacterMovementComponent* MoveComp = Cast<UEmpathCharacterMovementComponent>(GetCharacterMovement()))
+	{
+		AgentLocation = MoveComp->GetPathingSourceLocation();
+	}
+	else
+	{
+		AgentLocation = Super::GetNavAgentLocation();
+	}
+	return AgentLocation;
+}
+
+bool AEmpathCharacter::TraceJump(float Radius, FVector StartLocation, FVector Destination, float JumpArc, float PathTracePercent, FVector& OutLaunchVelocity, EDrawDebugTrace::Type DrawDebugType, float DrawDebugDuration)
+{
+	FVector LaunchVel;
+	bool bHit = false;
+	JumpArc = FMath::Clamp(JumpArc, 0.f, 0.99f);
+	Radius = FMath::Max(Radius, 0.f);
+
+	// Check if the jump is a success
+	bool bSuccess = UEmpathFunctionLibrary::SuggestProjectileVelocity(this, LaunchVel, StartLocation, Destination, JumpArc);
+	if (bSuccess && !LaunchVel.IsZero())
+	{
+		// Calculate jump variables
+		const float DistanceXY = FVector::Dist2D(StartLocation, Destination);
+		const float VelocityXY = LaunchVel.Size2D();
+		const float TimeToTarget = (VelocityXY > 0.f) ? DistanceXY / VelocityXY : 0.f;
+		if (TimeToTarget == 0.f)
+		{
+			// We shouldn't really hit the case of zero horizontal velocity since we limit the jump arc limit
+			OutLaunchVelocity = FVector::ZeroVector;
+			return false;
+		}
+
+		PathTracePercent = FMath::Clamp(PathTracePercent, 0.f, 1.f);
+		const float TraceSimTime = TimeToTarget * PathTracePercent;
+
+		// Setup trace variables
+		FPredictProjectilePathParams PredictParams(Radius, StartLocation, LaunchVel, TraceSimTime, ECC_Pawn, this);
+		PredictParams.bTraceWithCollision = true;
+		PredictParams.bTraceComplex = false;
+		PredictParams.SimFrequency = 4.0f;
+		PredictParams.DrawDebugType = DrawDebugType;
+		PredictParams.DrawDebugTime = DrawDebugDuration;
+
+		// Do the trace
+		FPredictProjectilePathResult PathResult;
+		const bool bHitSomething = UGameplayStatics::PredictProjectilePath(this, PredictParams, PathResult);
+		bSuccess = !bHitSomething;
+	}
+
+	// Update variables and return
+	OutLaunchVelocity = LaunchVel;
+	return bSuccess;
+}
+
+bool AEmpathCharacter::DoJump(FVector GroundDestination, float JumpArc, float PathTracePercent, FVector& OutLaunchVelocity, EDrawDebugTrace::Type DrawDebugType, float DrawDebugDuration)
+{
+	bool bSuccess = false;
+
+	float CapsuleRadius, CapsuleLinearHalfHeight;
+	GetCapsuleComponent()->GetScaledCapsuleSize_WithoutHemisphere(CapsuleRadius, CapsuleLinearHalfHeight);
+
+	const float TraceRadius = CapsuleRadius * 0.90f;
+	const FVector StartLocation = GetActorLocation() - FVector(0.f, 0.f, CapsuleLinearHalfHeight);
+	const FVector TraceDestination = GroundDestination + CapsuleRadius;
+
+	const bool bTraceSuccess = TraceJump(TraceRadius, StartLocation, TraceDestination, JumpArc, PathTracePercent, OutLaunchVelocity, DrawDebugType, DrawDebugDuration);
+	if (bTraceSuccess)
+	{
+		if (AEmpathAIController* const EmpathAI = GetEmpathAICon())
+		{
+			float AscendingTime, DescendingTime;
+			bSuccess = EmpathAI->DoJumpLaunchWithPrecomputedVelocity(FTransform(TraceDestination), OutLaunchVelocity, JumpArc, nullptr, AscendingTime, DescendingTime);
+		}
+	}
+
+	return bSuccess;
 }

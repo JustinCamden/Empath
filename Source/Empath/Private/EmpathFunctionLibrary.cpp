@@ -5,6 +5,9 @@
 #include "EmpathGameModeBase.h"
 #include "EmpathAimLocationInterface.h"
 
+DECLARE_CYCLE_STAT(TEXT("PredictProjectilePath"), STAT_EMPATH_PredictProjectilePath, STATGROUP_EMPATH_FunctionLibrary);
+DECLARE_CYCLE_STAT(TEXT("SuggestProjectileVelocity_CustomArc"), STAT_EMPATH_SuggestProjectileVelocity, STATGROUP_EMPATH_FunctionLibrary);
+
 // Static consts
 static const float MaxImpulsePerMass = 5000.f;
 static const float MaxPointImpulseMag = 120000.f;
@@ -303,3 +306,55 @@ const float UEmpathFunctionLibrary::GetMagnitudeInDirection(const FVector Vector
 {
 	return FVector::DotProduct(Vector, Direction.GetSafeNormal());
 }
+
+bool UEmpathFunctionLibrary::PredictProjectilePath(const UObject* WorldContextObject, FHitResult& OutHit, TArray<FVector>& OutPathPositions, FVector& OutLastTraceDestination, FVector StartPos, FVector LaunchVelocity, bool bTracePath, float ProjectileRadius, const TArray<TEnumAsByte<EObjectTypeQuery> >& ObjectTypes, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, float DrawDebugTime, float SimFrequency, float MaxSimTime)
+{
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_PredictProjectilePath);
+	return UGameplayStatics::Blueprint_PredictProjectilePath_ByObjectType(WorldContextObject, OutHit, OutPathPositions, OutLastTraceDestination, StartPos, LaunchVelocity, bTracePath, ProjectileRadius, ObjectTypes, bTraceComplex, ActorsToIgnore, DrawDebugType, DrawDebugTime, SimFrequency, MaxSimTime);
+}
+
+bool UEmpathFunctionLibrary::SuggestProjectileVelocity(const UObject* WorldContextObject, FVector& OutLaunchVelocity, FVector StartPos, FVector EndPos, float Arc)
+{
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_SuggestProjectileVelocity);
+	return UGameplayStatics::SuggestProjectileVelocity_CustomArc(WorldContextObject, OutLaunchVelocity, StartPos, EndPos, /*OverrideCustomGravityZ=*/ 0.f, Arc);
+}
+
+
+void UEmpathFunctionLibrary::CalculateJumpTimings(UObject* WorldContextObject, FVector LaunchVelocity, FVector StartLocation, FVector EndLocation, float& OutAscendingTime, float& OutDescendingTime)
+{
+	// Cache variables
+	UWorld* World = WorldContextObject->GetWorld();
+	float const Gravity = World->GetGravityZ();
+	float const XYSpeed = LaunchVelocity.Size2D();
+	float const XYDistance = FVector::DistXY(StartLocation, EndLocation);
+	float const TotalTime = XYDistance / XYSpeed;
+
+	// If we are ascending for part of the jump
+	if (LaunchVelocity.Z > 0.0f)
+	{
+		// Calculate how long until we hit the apex of the jump
+		float TimeToApex = -LaunchVelocity.Z / Gravity;
+
+		// We hit the destination while still ascending
+		if (TimeToApex > TotalTime)
+		{
+			OutAscendingTime = TotalTime;
+			OutDescendingTime = 0.0f;
+		}
+
+		// Descent time is the remaining time after ascending
+		else
+		{
+			OutAscendingTime = TimeToApex;
+			OutDescendingTime = TotalTime - OutAscendingTime;
+		}
+	}
+
+	// We are descending for the entire jump
+	else
+	{
+		OutAscendingTime = 0.0f;
+		OutDescendingTime = TotalTime;
+	}
+}
+

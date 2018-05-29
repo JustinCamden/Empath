@@ -6,6 +6,7 @@
 #include "EmpathTypes.h"
 #include "EmpathTeamAgentInterface.h"
 #include "GameFramework/Character.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "EmpathCharacter.generated.h"
 
 // Stat groups for UE Profiler
@@ -326,6 +327,29 @@ public:
 
 	/** Checks to see if our ragdoll is at rest and whether we are not dead. If so, signals us to get up. */
 	void CheckForEndRagdoll();
+
+
+	// ---------------------------------------------------------
+	//	Movement
+
+	/** Returns the source for pathing requests, typically just the character location but maybe something else for a hovering unit (eg the ground below them). */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Movement")
+	FVector GetPathingSourceLocation() const;
+
+	/**
+	* Traces a jump from StartLocation to Destination.
+	* @param JumpArc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath")
+	bool TraceJump(float Radius, FVector StartLocation, FVector Destination, float JumpArc, float PathTracePercent, FVector& OutLaunchVelocity, EDrawDebugTrace::Type DrawDebugType, float DrawDebugDuration);
+
+	/**
+	* Traces a jump from StartLocation to Destination and then actually performs the jump.
+	* @param JumpArc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Empath")
+	bool DoJump(FVector GroundDestination, float JumpArc, float PathTracePercent, FVector& OutLaunchVelocity, EDrawDebugTrace::Type DrawDebugType, float DrawDebugDuration);
+
 
 
 protected:
