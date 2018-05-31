@@ -16,6 +16,46 @@
 #include "EmpathNavLinkProxy_Jump.h"
 
 // Stats for UE Profiler
+DECLARE_CYCLE_STAT(TEXT("Empath Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
+DECLARE_CYCLE_STAT(TEXT("Empath Is Ragdoll At Rest Check"), STAT_EMPATH_IsRagdollAtRest, STATGROUP_EMPATH_Character);
+
+// Log categories
+DEFINE_LOG_CATEGORY_STATIC(LogAIController, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogAIVision, Log, All);
+
+// Console variable setup so we can enable and disable vision debugging from the console
+static int32 EmpathAIVisionDrawDebug = 0;
+FAutoConsoleVariableRef CVarEmpathAIVisionDrawDebug(
+	TEXT("Empath.AIVisionDrawDebug"),
+	EmpathAIVisionDrawDebug,
+	TEXT("Whether to enable AI vision debug.\n")
+	TEXT("0: Disable, 1: Enable"),
+	ECVF_Cheat);
+
+static float EmpathAIVisionDebugLifetime = 3.0f;
+FAutoConsoleVariableRef CVarEmpathAIVisionDebugLifetime(
+	TEXT("Empath.AIVisionDebugLifetime"),
+	EmpathAIVisionDebugLifetime,
+	TEXT("Duration of debug drawing for AI vision, in seconds."),
+	ECVF_Cheat);
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#define AIVISION_LOC(_Loc, _Radius, _Color)									if (EmpathAIVisionDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color); }
+#define AIVISION_LINE(_Loc, _Dest, _Color)									if (EmpathAIVisionDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color); }
+#define AIVISION_CONE(_Loc, _Forward, _Dist, _Angle, _Color)				if (EmpathAIVisionDrawDebug) { DrawDebugCone(GetWorld(), _Loc, _Forward, _Dist, _Angle, _Angle, 12, _Color);}
+#define AIVISION_LOC_DURATION(_Loc, _Radius, _Color)						if (EmpathAIVisionDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, EmpathAIVisionDebugLifetime); }
+#define AIVISION_LINE_DURATION(_Loc, _Dest, _Color)							if (EmpathAIVisionDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, EmpathAIVisionDebugLifetime); }
+#define AIVISION_CONE_DURATION(_Loc, _Forward, _Dist, _Angle, _Color)		if (EmpathAIVisionDrawDebug) { DrawDebugCone(GetWorld(), _Loc, _Forward, _Dist, _Angle, _Angle, 12, _Color, false, EmpathAIVisionDebugLifetime);}
+#else
+#define AIVISION_LOC(_Loc, _Radius, _Color)				/* nothing */
+#define AIVISION_LINE(_Loc, _Dest, _Color)				/* nothing */
+#define AIVISION_CONE(_Loc, _Dest, _Color)				/* nothing */
+#define AIVISION_LOC_DURATION(_Loc, _Radius, _Color)	/* nothing */
+#define AIVISION_LINE_DURATION(_Loc, _Dest, _Color)		/* nothing */
+#define AIVISION_CONE_DURATION(_Loc, _Dest, _Color)		/* nothing */
+#endif
+
+// Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("AI Update Attack Target"), STAT_EMPATH_UpdateAttackTarget, STATGROUP_EMPATH_AICon);
 DECLARE_CYCLE_STAT(TEXT("AI Update Vision"), STAT_EMPATH_UpdateVision, STATGROUP_EMPATH_AICon);
 DECLARE_CYCLE_STAT(TEXT("AI Jump Anim Calculation"), STAT_EMPATH_JumpAnim, STATGROUP_EMPATH_AICon);
@@ -51,8 +91,8 @@ AEmpathAIController::AEmpathAIController(const FObjectInitializer& ObjectInitial
 	PeripheralVisionAngle = 85.0f;
 	PeripheralVisionDistance = 1500.0f;
 	AutoSeeDistance = 100.0f;
-	bDrawDebugVision = false;
-	bDrawDebugLOSBlockingHits = false;
+	//bDrawDebugVision = false;
+	//bDrawDebugLOSBlockingHits = false;
 
 	// Bind events and delegates
 	OnLOSTraceCompleteDelegate.BindUObject(this, &AEmpathAIController::OnLOSTraceComplete);
@@ -88,7 +128,7 @@ void AEmpathAIController::BeginPlay()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s ERROR: Not running in Empath game mode!"), *GetName());
+		UE_LOG(LogAIController, Warning, TEXT("%s ERROR: Not running in Empath game mode!"), *GetName());
 	}
 }
 
@@ -818,24 +858,27 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 				bInVisionCone = (AngleCos >= CosLimit);
 			}
 
-			// Draw debug shapes if appropriate
-			if (bDrawDebugVision)
-			{
-				// Forward Vision
-				DrawDebugCone(World, ViewLoc, EyesForwardNorm, PeripheralVisionDistance + 500.0f, 
-					FMath::DegreesToRadians(ForwardVisionAngle), 
-					FMath::DegreesToRadians(ForwardVisionAngle), 
-					12, FColor::Yellow, false, 1.0f);
+			//// Draw debug shapes if appropriate
+			//if (bDrawDebugVision)
+			//{
+			//	// Forward Vision
+			AIVISION_CONE_DURATION(ViewLoc, EyesForwardNorm, PeripheralVisionDistance + 500.0f, FMath::DegreesToRadians(ForwardVisionAngle), FColor::Yellow);
+			//	DrawDebugCone(World, ViewLoc, EyesForwardNorm, PeripheralVisionDistance + 500.0f, 
+			//		FMath::DegreesToRadians(ForwardVisionAngle), 
+			//		FMath::DegreesToRadians(ForwardVisionAngle), 
+			//		12, FColor::Yellow, false, 1.0f);
 
-				// Peripheral vision
-				DrawDebugCone(World, ViewLoc, EyesForwardNorm, PeripheralVisionDistance,
-					FMath::DegreesToRadians(PeripheralVisionAngle),
-					FMath::DegreesToRadians(PeripheralVisionAngle),
-					12, FColor::Green, false, 1.0f);
+			//	// Peripheral vision
+			AIVISION_CONE_DURATION(ViewLoc, EyesForwardNorm, PeripheralVisionDistance, FMath::DegreesToRadians(PeripheralVisionAngle), FColor::Green);
+			//	DrawDebugCone(World, ViewLoc, EyesForwardNorm, PeripheralVisionDistance,
+			//		FMath::DegreesToRadians(PeripheralVisionAngle),
+			//		FMath::DegreesToRadians(PeripheralVisionAngle),
+			//		12, FColor::Green, false, 1.0f);
 
-				// Auto see distance
-				DrawDebugSphere(World, ViewLoc, AutoSeeDistance, 12, FColor::Red, false, 1.0f);
-			}
+			//	// Auto see distance
+			AIVISION_LOC_DURATION(ViewLoc, AutoSeeDistance, FColor::Red);
+			//	DrawDebugSphere(World, ViewLoc, AutoSeeDistance, 12, FColor::Red, false, 1.0f);
+			//}
 		}
 
 		// If we are in the vision cone, prepare to trace
@@ -857,22 +900,26 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 					if (OutHit.bBlockingHit && (OutHit.Actor != AttackTarget))
 					{
 						bHasLOS = false;
-						if (bDrawDebugLOSBlockingHits)
-						{
-							UE_LOG(LogTemp, Log, TEXT("Visual trace hit %s!"), *GetNameSafe(OutHit.GetActor()));
-
-							DrawDebugBox(GetWorld(), TraceStart, FVector(8.f), FColor::White, false, 5.f);
-							DrawDebugBox(GetWorld(), TraceEnd, FVector(8.f), FColor::Yellow, false, 5.f);
-							DrawDebugSphere(GetWorld(), OutHit.ImpactPoint, 8.f, 10, FColor::Red, false, 5.f);
-							DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Yellow, false, 5.f, 0, 3.f);
-						}
+						//if (bDrawDebugLOSBlockingHits)
+						//{
+						UE_LOG(LogAIVision, Log, TEXT("Visual trace hit %s!"), *GetNameSafe(OutHit.GetActor()));
+						AIVISION_LOC_DURATION(TraceStart, 8.0f, FColor::White);
+						AIVISION_LOC_DURATION(TraceEnd, 8.0f, FColor::Yellow);
+						AIVISION_LOC_DURATION(OutHit.ImpactPoint, 8.0f, FColor::Red);
+						AIVISION_LINE_DURATION(TraceStart, TraceEnd, FColor::Yellow);
+						//	DrawDebugBox(GetWorld(), TraceStart, FVector(8.f), FColor::White, false, 5.f);
+						//	DrawDebugBox(GetWorld(), TraceEnd, FVector(8.f), FColor::Yellow, false, 5.f);
+						//	DrawDebugSphere(GetWorld(), OutHit.ImpactPoint, 8.f, 10, FColor::Red, false, 5.f);
+						//	DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Yellow, false, 5.f, 0, 3.f);
+						//}
 					}
 					else
 					{
-						if (bDrawDebugLOSBlockingHits)
-						{
-							DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 5.f, 0, 3.f);
-						}
+						AIVISION_LINE_DURATION(TraceStart, TraceEnd, FColor::Green);
+						//if (bDrawDebugLOSBlockingHits)
+						//{
+						//	DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 5.f, 0, 3.f);
+						//}
 					}
 				}
 				SetCanSeeTarget(bHasLOS);
@@ -1044,30 +1091,36 @@ void AEmpathAIController::OnLOSTraceComplete(const FTraceHandle& TraceHandle, FT
 	// If we hit an object that isn't us or the attack target, then we do not have line of sight
 	if (OutHit)
 	{
-		if (OutHit->bBlockingHit && OutHit->Actor != GetAttackTarget())
+		if (OutHit->bBlockingHit && OutHit->GetActor() != GetAttackTarget())
 		{
 			bHasLOS = false;
 
 			// Draw debug blocking hits if appropriate
-			if (bDrawDebugLOSBlockingHits)
-			{
-				UE_LOG(LogTemp, Log, TEXT("Visual trace hit %s!"), *GetNameSafe(OutHit->GetActor()));
+			UE_LOG(LogAIVision, Log, TEXT("Visual trace hit %s!"), *GetNameSafe(OutHit->GetActor()));
+			AIVISION_LOC_DURATION(TraceDatum.Start, 8.0f, FColor::White);
+			AIVISION_LOC_DURATION(TraceDatum.End, 8.0f, FColor::Yellow);
+			AIVISION_LOC_DURATION(OutHit->ImpactPoint, 8.0f, FColor::Red);
+			AIVISION_LINE_DURATION(TraceDatum.Start, TraceDatum.End, FColor::Yellow);
+			//if (bDrawDebugLOSBlockingHits)
+			//{
+			//	UE_LOG(LogTemp, Log, TEXT("Visual trace hit %s!"), *GetNameSafe(OutHit->GetActor()));
 
-				DrawDebugBox(GetWorld(), TraceDatum.Start, FVector(8.f), FColor::White, false, 5.f);
-				DrawDebugBox(GetWorld(), TraceDatum.End, FVector(8.f), FColor::Yellow, false, 5.f);
-				DrawDebugSphere(GetWorld(), OutHit->ImpactPoint, 8.f, 10, FColor::Red, false, 5.f);
-				DrawDebugLine(GetWorld(), TraceDatum.Start, TraceDatum.End, FColor::Yellow, false, 5.f, 0, 3.f);
-			}
+			//	DrawDebugBox(GetWorld(), TraceDatum.Start, FVector(8.f), FColor::White, false, 5.f);
+			//	DrawDebugBox(GetWorld(), TraceDatum.End, FVector(8.f), FColor::Yellow, false, 5.f);
+			//	DrawDebugSphere(GetWorld(), OutHit->ImpactPoint, 8.f, 10, FColor::Red, false, 5.f);
+			//	DrawDebugLine(GetWorld(), TraceDatum.Start, TraceDatum.End, FColor::Yellow, false, 5.f, 0, 3.f);
+			//}
 		}
 	}
 
 	// If we see the target and are drawing debug hits, draw a line to the target to show we hit it
 	else
 	{
-		if (bDrawDebugLOSBlockingHits)
-		{
-			DrawDebugLine(GetWorld(), TraceDatum.Start, TraceDatum.End, FColor::Green, false, 5.f, 0, 3.f);
-		}
+		AIVISION_LINE_DURATION(TraceDatum.Start, TraceDatum.End, FColor::Green);
+		//if (bDrawDebugLOSBlockingHits)
+		//{
+		//	DrawDebugLine(GetWorld(), TraceDatum.Start, TraceDatum.End, FColor::Green, false, 5.f, 0, 3.f);
+		//}
 	}
 
 	// Update the visibility

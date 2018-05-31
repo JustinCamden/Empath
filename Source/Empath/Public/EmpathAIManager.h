@@ -10,9 +10,6 @@
 // Stat groups for UE Profiler
 DECLARE_STATS_GROUP(TEXT("EmpathAIManager"), STATGROUP_EMPATH_AIManager, STATCAT_Advanced);
 
-// Log categories
-DEFINE_LOG_CATEGORY_STATIC(LogAIManager, Log, All);
-
 // Delegates
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNewPlayerAwarenessStateDelegate, EPlayerAwarenessState, NewAwarenessState);
 

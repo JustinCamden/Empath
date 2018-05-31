@@ -9,6 +9,9 @@
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("AI Hearing Checks"), STAT_EMPATH_HearingChecks, STATGROUP_EMPATH_AIManager);
 
+// Log categories
+DEFINE_LOG_CATEGORY_STATIC(LogAIManager, Log, All);
+
 const float AEmpathAIManager::HearingDisconnectDist = 500.0f;
 
 // Allows us to get IsValid from SecondaryAttackTarget structs

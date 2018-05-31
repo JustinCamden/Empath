@@ -15,6 +15,9 @@
 DECLARE_CYCLE_STAT(TEXT("Empath Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
 DECLARE_CYCLE_STAT(TEXT("Empath Is Ragdoll At Rest Check"), STAT_EMPATH_IsRagdollAtRest, STATGROUP_EMPATH_Character);
 
+// Log categories
+DEFINE_LOG_CATEGORY_STATIC(LogNavRecovery, Log, All);
+
 // Console variable setup so we can enable and disable nav recovery debugging from the console
 static int32 EmpathNavRecoveryDrawDebug = 0;
 FAutoConsoleVariableRef CVarEmpathNavRecoveryDrawDebug(
@@ -24,18 +27,18 @@ FAutoConsoleVariableRef CVarEmpathNavRecoveryDrawDebug(
 	TEXT("0: Disable, 1: Enable"),
 	ECVF_Cheat);
 
-static float EmpathNavRecoveryDebugVisLifetime = 3.0f;
+static float EmpathNavRecoveryDebugLifetime = 3.0f;
 FAutoConsoleVariableRef CVarEmpathNavRecoveryDebugLifetime(
 	TEXT("Empath.NavRecoveryDrawLifetime"),
-	EmpathNavRecoveryDebugVisLifetime,
+	EmpathNavRecoveryDebugLifetime,
 	TEXT("Duration of debug drawing for nav recovery, in seconds."),
 	ECVF_Cheat);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #define NAVRECOVERY_LOC(_Loc, _Radius, _Color)				if (EmpathNavRecoveryDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color); }
 #define NAVRECOVERY_LINE(_Loc, _Dest, _Color)				if (EmpathNavRecoveryDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color); }
-#define NAVRECOVERY_LOC_DURATION(_Loc, _Radius, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, EmpathNavRecoveryDebugVisLifetime); }
-#define NAVRECOVERY_LINE_DURATION(_Loc, _Dest, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, EmpathNavRecoveryDebugVisLifetime); }
+#define NAVRECOVERY_LOC_DURATION(_Loc, _Radius, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, EmpathNavRecoveryDebugLifetime); }
+#define NAVRECOVERY_LINE_DURATION(_Loc, _Dest, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, EmpathNavRecoveryDebugLifetime); }
 #else
 #define NAVRECOVERY_LOC(_Loc, _Radius, _Color)				/* nothing */
 #define NAVRECOVERY_LINE(_Loc, _Dest, _Color)				/* nothing */

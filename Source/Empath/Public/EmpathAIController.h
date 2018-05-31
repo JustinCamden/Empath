@@ -434,13 +434,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
 	float AutoSeeDistance;
 
-	/** Whether we should draw debug vision cones when updating vision. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
-	bool bDrawDebugVision;
+	///** Whether we should draw debug vision cones when updating vision. */
+	//UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	//bool bDrawDebugVision;
 
-	/** Whether we should draw blocking hits when updating vision vision. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
-	bool bDrawDebugLOSBlockingHits;
+	///** Whether we should draw blocking hits when updating vision vision. */
+	//UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	//bool bDrawDebugLOSBlockingHits;
 
 	// ---------------------------------------------------------
 	//	Target selection variables

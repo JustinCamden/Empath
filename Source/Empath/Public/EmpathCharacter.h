@@ -18,9 +18,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FOnCharacterDeathDelegate, FHitRes
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCharacterStunnedDelegate, const AController*, StunInstigator, const AActor*, StunCauser, const float, StunDuration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterStunEndDelegate);
 
-// Log categories
-DEFINE_LOG_CATEGORY_STATIC(LogNavRecovery, Log, All);
-
 class AEmpathAIController;
 class UDamageType;
 class UPhysicalAnimationComponent;
