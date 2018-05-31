@@ -9,12 +9,41 @@
 #include "PhysicsEngine/PhysicalAnimationComponent.h"
 #include "EmpathCharacterMovementComponent.h"
 #include "EmpathPathFollowingComponent.h"
-
+#include "DrawDebugHelpers.h"
 
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("Empath Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
 DECLARE_CYCLE_STAT(TEXT("Empath Is Ragdoll At Rest Check"), STAT_EMPATH_IsRagdollAtRest, STATGROUP_EMPATH_Character);
 
+// Console variable setup so we can enable and disable nav recovery debugging from the console
+static int32 EmpathNavRecoveryDrawDebug = 0;
+FAutoConsoleVariableRef CVarEmpathNavRecoveryDrawDebug(
+	TEXT("Empath.NavRecoveryDrawDebug"),
+	EmpathNavRecoveryDrawDebug,
+	TEXT("Whether to enable nav recovery debug.\n")
+	TEXT("0: Disable, 1: Enable"),
+	ECVF_Cheat);
+
+static float EmpathNavRecoveryDebugVisLifetime = 3.0f;
+FAutoConsoleVariableRef CVarEmpathNavRecoveryDebugLifetime(
+	TEXT("Empath.NavRecoveryDrawLifetime"),
+	EmpathNavRecoveryDebugVisLifetime,
+	TEXT("Duration of debug drawing for nav recovery, in seconds."),
+	ECVF_Cheat);
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#define NAVRECOVERY_LOC(_Loc, _Radius, _Color)				if (EmpathNavRecoveryDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color); }
+#define NAVRECOVERY_LINE(_Loc, _Dest, _Color)				if (EmpathNavRecoveryDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color); }
+#define NAVRECOVERY_LOC_DURATION(_Loc, _Radius, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, EmpathNavRecoveryDebugVisLifetime); }
+#define NAVRECOVERY_LINE_DURATION(_Loc, _Dest, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, EmpathNavRecoveryDebugVisLifetime); }
+#else
+#define NAVRECOVERY_LOC(_Loc, _Radius, _Color)				/* nothing */
+#define NAVRECOVERY_LINE(_Loc, _Dest, _Color)				/* nothing */
+#define NAVRECOVERY_LOC_DURATION(_Loc, _Radius, _Color)		/* nothing */
+#define NAVRECOVERY_LINE_DURATION(_Loc, _Dest, _Color)		/* nothing */
+#endif
+
+// Consts
 const FName AEmpathCharacter::MeshCollisionProfileName(TEXT("CharacterMesh"));
 const FName AEmpathCharacter::PhysicalAnimationComponentName(TEXT("PhysicalAnimationComponent"));
 const float AEmpathCharacter::RagdollCheckTimeMin = 0.25;
@@ -30,47 +59,73 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 	// Enable tick events on this character
 	PrimaryActorTick.bCanEverTick = true;
 
-	// Set default variables
+	// Health and damage
+	bInvincible = false;
 	MaxHealth = 10.0f;
 	CurrentHealth = MaxHealth;
-	MaxEffectiveDistance = 250.0f;
-	MinEffectiveDistance = 0.0f;
-	DefaultTeam = EEmpathTeam::Enemy;
-	bInvincible = false;
 	bAllowDamageImpulse = true;
 	bAllowDeathImpulse = true;
 	bShouldRagdollOnDeath = true;
 	bCanTakeFriendlyFire = false;
-	bAllowRagdoll = true;
+
+	// Stunning
 	bStunnable = true;
 	StunDamageThreshold = 5.0f;
 	StunTimeThreshold = 0.5f;
 	StunDurationDefault = 3.0f;
 	StunImmunityTimeAfterStunRecovery = 3.0f;
+
+
+	// General combat
+	MaxEffectiveDistance = 250.0f;
+	MinEffectiveDistance = 0.0f;
+	DefaultTeam = EEmpathTeam::Enemy;
+
+	// Physics
+	bAllowRagdoll = true;
 	CurrentCharacterPhysicsState = EEmpathCharacterPhysicsState::Kinematic;
-
-	// Set default physics states
+	
+	// Initialize default physics state entries
+	// Physical animation profiles will have to be set in blueprint
+	// Kinematic
 	FEmpathCharPhysicsStateSettingsEntry Entry;
-
 	Entry.PhysicsState = EEmpathCharacterPhysicsState::Kinematic;
 	PhysicsSettingsEntries.Add(Entry);
 
+	// Full ragdoll
 	Entry.PhysicsState = EEmpathCharacterPhysicsState::FullRagdoll;
 	Entry.Settings.bSimulatePhysics = true;
 	Entry.Settings.bEnableGravity = true;
 	PhysicsSettingsEntries.Add(Entry);
 
+	// Hit react
 	Entry.PhysicsState = EEmpathCharacterPhysicsState::HitReact;
 	Entry.Settings.bEnableGravity = false;
 	PhysicsSettingsEntries.Add(Entry);
 
+	// Player hittable
 	Entry.PhysicsState = EEmpathCharacterPhysicsState::PlayerHittable;
 	PhysicsSettingsEntries.Add(Entry);
 
+	// Getting up
 	Entry.PhysicsState = EEmpathCharacterPhysicsState::GettingUp;
 	PhysicsSettingsEntries.Add(Entry);
-	
 
+	// Nav mesh recovery
+	bShouldUseNavRecovery = true;
+	NavRecoveryAbility = EEmpathNavRecoveryAbility::OnNavMeshIsland;
+	bFailedNavigation = false;
+	NavRecoveryJumpArcMin = 0.25f;
+	NavRecoveryJumpArcMax = 0.5f;
+
+	// Adjust On Island recovery settings
+	NavRecoverySettingsOnIsland.MaxRecoveryAttemptTime = 3.0f;
+	NavRecoverySettingsOnIsland.SearchInnerRadius = 200.0f;
+	NavRecoverySettingsOnIsland.SearchOuterRadius = 400.0f;
+	NavRecoverySettingsOnIsland.SearchRadiusGrowthRateInner = 25.0f;
+	NavRecoverySettingsOnIsland.SearchRadiusGrowthRateOuter = 50.0f;
+	NavRecoveryTestExtent = FVector(0.0f, 0.0f, 2048.0f);
+	
 	// Setup components
 	// Mesh
 	GetMesh()->SetCollisionProfileName(AEmpathCharacter::MeshCollisionProfileName);
@@ -121,7 +176,7 @@ void AEmpathCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-AEmpathAIController* AEmpathCharacter::GetEmpathAICon()
+AEmpathAIController* AEmpathCharacter::GetEmpathAICon() const
 {
 	if (CachedEmpathAICon)
 	{
@@ -141,6 +196,52 @@ void AEmpathCharacter::Tick(float DeltaTime)
 	{
 		bDeferredGetUpFromRagdoll = false;
 		StartRecoverFromRagdoll();
+	}
+
+	// Navmesh recovery
+	if (IsFailingNavigation() && !bDead)
+	{
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			const FVector Location = GetActorLocation();
+			const float TimeSinceStart = World->TimeSince(NavRecoveryStartTime);
+			const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
+
+			if (TimeSinceStart >= CurrentSettings.MaxRecoveryAttemptTime)
+			{
+				OnNavMeshRecoveryFailed(Location, TimeSinceStart);
+			}
+			else
+			{
+				// Require default movement mode.
+				// Otherwise, we usually can't path, or jumping would look bad.
+				if (ExpectsSuccessfulPathInCurrentState())
+				{
+					const FVector Destination = GetNavRecoveryDestination();
+
+					// Destination is zero if not set yet by Behavior Tree.
+					if (!Destination.IsZero())
+					{
+						OnTickNavMeshRecovery(CurrentSettings, DeltaTime, Location, Destination);
+					}
+					else
+					{
+						// Allow slight delay for BT to set the location.
+						if (TimeSinceStart > 0.20f)
+						{
+							UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Tick recovery has no destination set from location [%s]"), *GetNameSafe(this), *Location.ToString());
+							NAVRECOVERY_LOC(Location, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Red);
+							ReceiveFailedToFindRecoveryDestination(DeltaTime, Location, TimeSinceStart);
+						}
+					}
+				}
+				else
+				{
+					UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Tick recovery skipped from location [%s] because we are in a non-default movement mode (%d)"), *GetNameSafe(this), *Location.ToString(), (int32)GetCharacterMovement()->MovementMode);
+				}
+			}
+		}
 	}
 }
 
@@ -923,4 +1024,376 @@ void AEmpathCharacter::SetWalkingSpeedData(float WalkingSpeed, float WalkingBrak
 			RefreshPathingSpeedData();
 		}
 	}
+}
+
+bool AEmpathCharacter::ExpectsSuccessfulPathInCurrentState() const
+{
+	// We don't expect to move if we're limp or dead
+	if (bRagdolling || bDead)
+	{
+		return false;
+	}
+
+	// Check if the character is off the navmesh
+	if (GetCharacterMovement()->MovementMode != GetCharacterMovement()->DefaultLandMovementMode ||
+		GetCharacterMovement()->MovementMode == EMovementMode::MOVE_Falling)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+void AEmpathCharacter::OnRequestingPath_Implementation()
+{
+	bPathRequestActive = true;
+	bPathRequestSuccessful = false;
+	UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Requesting path from location [%s]"), *GetNameSafe(this), *GetActorLocation().ToString());
+}
+
+void AEmpathCharacter::OnPathRequestSuccess_Implementation(FVector GoalLocation)
+{
+	// Note that we ignore the ExpectsSuccessfulPathInCurrentState(), 
+	// because it could have been a success made when about to land, 
+	// and we automatically fail when falling. 
+	// We want to avoid counting failures when we wouldn't expect success.
+	if (bFailedNavigation)
+	{
+		// Normally we are triggered by a successful MoveTo which already sets this,
+		// but anims might want it and it won't be set from some recovery logic 
+		// (such as jumps).
+		AEmpathAIController* const AI = Cast<AEmpathAIController>(GetController());
+		if (AI)
+		{
+			AI->SetGoalLocation(GoalLocation);
+		}
+		// Draw from current location to the goal when we recover
+		NAVRECOVERY_LOC_DURATION(GetActorLocation(), GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Green);
+		NAVRECOVERY_LOC_DURATION(GoalLocation, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Green);
+		NAVRECOVERY_LINE(GetActorLocation(), GoalLocation, FColor::Green);
+	}
+
+	// Reset the recovery state
+	ClearNavRecoveryState();
+	UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Path request success! Location [%s], goal [%s]"), *GetNameSafe(this), *GetActorLocation().ToString(), *GoalLocation.ToString());
+}
+
+
+bool AEmpathCharacter::OnPathRequestFailed_Implementation(FVector GoalLocation)
+{
+	// Reset state variables
+	bPathRequestActive = false;
+	bPathRequestSuccessful = false;
+
+	// If we are not using nav recovery, do nothing
+	if (!bShouldUseNavRecovery)
+	{
+		return false;
+	}
+
+	// If it is already being handled, we don't need to restart recovery.
+	if (bFailedNavigation)
+	{
+		UE_LOG(LogNavRecovery, Warning, TEXT("%s: Notified failing nav mesh while trying to recover. Should not be trying to path while recovering."), *GetNameSafe(this));
+		return false;
+	}
+
+	// Path failures while unable to path should be ignored.
+	if (!ExpectsSuccessfulPathInCurrentState())
+	{
+		// Reset failure tracking.
+		UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Ignoring failed Path request at location [%s], goal [%s] because path success is not expected."), *GetNameSafe(this), *GetActorLocation().ToString(), *GoalLocation.ToString());
+		ClearNavRecoveryState();
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	if (!ensure(World != nullptr))
+	{
+		return false;
+	}
+
+	UE_LOG(LogNavRecovery, Verbose, TEXT("%s: Path request failed at location [%s], goal [%s]"), *GetNameSafe(this), *GetActorLocation().ToString(), *GoalLocation.ToString());
+	NAVRECOVERY_LOC(GetActorLocation(), GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Red);
+	NAVRECOVERY_LOC(GoalLocation, GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.95f, FColor::Orange);
+	NAVRECOVERY_LINE(GetActorLocation(), GoalLocation, FColor::Orange);
+
+	// Update tracking
+	NavFailureCurrentCount++;
+	if (NavFailureFirstFailTime == 0.f)
+	{
+		NavFailureFirstFailTime = World->GetTimeSeconds();
+	}
+
+	// Check if it's time to switch to regaining.
+	bool bShouldStartNavRecovery = false;
+	const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
+	if (CurrentSettings.FailureCountUntilRecovery > 0 && NavFailureCurrentCount >= CurrentSettings.FailureCountUntilRecovery)
+	{
+		bShouldStartNavRecovery = true;
+	}
+	else if (CurrentSettings.FailureTimeUntilRecovery > 0 && World->TimeSince(NavFailureFirstFailTime) >= CurrentSettings.FailureTimeUntilRecovery)
+	{
+		bShouldStartNavRecovery = true;
+	}
+
+	// If we are off navmesh, go to failure anyway
+	FVector ProjectedPoint;
+	const bool bOnNavMesh = UEmpathFunctionLibrary::EmpathProjectPointToNavigation(this, ProjectedPoint, GetActorLocation(), nullptr, nullptr, NavRecoveryTestExtent);
+	if (bOnNavMesh == false)
+	{
+		bShouldStartNavRecovery = true;
+	}
+	else
+	{
+		// We are on navmesh. Can't try to do recovery if we only handle being off mesh.
+		if (NavRecoveryAbility == EEmpathNavRecoveryAbility::OffNavMesh)
+		{
+			UE_LOG(LogNavRecovery, Verbose, TEXT("%s: Will not try nav recovery from location [%s], goal [%s] because we are on mesh and can only handle being off the mesh."), *GetNameSafe(this), *GetActorLocation().ToString(), *GoalLocation.ToString());
+			bShouldStartNavRecovery = false;
+		}
+	}
+
+	// Start if requested
+	if (bShouldStartNavRecovery)
+	{
+		OnStartNavRecovery(GoalLocation, bOnNavMesh);
+	}
+
+	return bFailedNavigation;
+}
+
+void AEmpathCharacter::OnStartNavRecovery_Implementation(FVector FailedGoalLocation, bool bCurrentlyOnNavMesh)
+{
+	// Initialize nav recovery state variables
+	ClearNavRecoveryState();
+	bFailedNavigation = true;
+	bFailedNavigationStartedOnNavMesh = bCurrentlyOnNavMesh;
+	bPathRequestActive = false;
+	bPathRequestSuccessful = false;
+	NavRecoveryStartTime = GetWorld()->GetTimeSeconds();
+	NavRecoveryStartActorLocation = GetActorLocation();
+	NavRecoveryStartPathingLocation = GetPathingSourceLocation();
+	NavRecoveryFailedGoalLocation = FailedGoalLocation;
+
+	// Signal our AI to update its search radius. 
+	// The AI should run an EQS query from the blackboard
+	AEmpathAIController* const AI = Cast<AEmpathAIController>(GetController());
+	if (AI)
+	{
+		const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
+		AI->SetNavRecoverySearchRadii(CurrentSettings.SearchInnerRadius, CurrentSettings.SearchOuterRadius);
+	}
+
+	UE_LOG(LogNavRecovery, Warning, TEXT("%s: Failed Navigation, starting recovery from location [%s], goal [%s] (dist=%.2f, dist2D=%.2f) StartedOnMesh=%d"),
+		*GetNameSafe(this), *NavRecoveryStartActorLocation.ToString(), *FailedGoalLocation.ToString(), (NavRecoveryStartActorLocation - FailedGoalLocation).Size(), (NavRecoveryStartActorLocation - FailedGoalLocation).Size2D(), bFailedNavigationStartedOnNavMesh);
+	NAVRECOVERY_LOC_DURATION(NavRecoveryStartActorLocation, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Red);
+	NAVRECOVERY_LOC_DURATION(FailedGoalLocation, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Red);
+	NAVRECOVERY_LINE_DURATION(NavRecoveryStartActorLocation, FailedGoalLocation, FColor::Red);
+}
+
+void AEmpathCharacter::OnNavMeshRecovered_Implementation()
+{
+	if (bFailedNavigation)
+	{
+		UE_LOG(LogNavRecovery, Warning, TEXT("%s: Regained nav mesh! At location [%s], goal was [%s] (dist=%.2f, dist2D=%.2f) StartedOnMesh=%d"),
+			*GetNameSafe(this), *GetActorLocation().ToString(), *GetNavRecoveryDestination().ToString(), (GetActorLocation() - GetNavRecoveryDestination()).Size(), (GetActorLocation() - GetNavRecoveryDestination()).Size2D(), bFailedNavigationStartedOnNavMesh);
+		NAVRECOVERY_LOC_DURATION(GetActorLocation(), GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Green);
+		
+		// End the lost nav mesh state flow
+		bFailedNavigation = false;
+		NavRecoveryCounter = 0;
+		OnPathRequestSuccess(GetActorLocation());
+	}
+	else
+	{
+		UE_LOG(LogNavRecovery, Warning, TEXT("%s: Character was flagged as having regained the navmesh when navmesh was not believed to be lost."), *GetNameSafe(this));
+	}
+}
+
+void AEmpathCharacter::ReceiveNavMeshRecoveryFailed_Implementation(FVector Location, float TimeSinceStartRecovery, bool bWasOnNavMeshAtStart)
+{
+	// By default, restart the process and clear the failure in case normal movement works again.
+	ClearNavRecoveryState();
+}
+
+void AEmpathCharacter::ClearNavRecoveryState()
+{
+	bFailedNavigation = false;
+	bFailedNavigationStartedOnNavMesh = false;
+	bPathRequestActive = false;
+	bPathRequestSuccessful = true;
+	NavRecoveryStartActorLocation = FVector::ZeroVector;
+	NavRecoveryStartPathingLocation = FVector::ZeroVector;
+	NavFailureCurrentCount = 0;
+	NavFailureFirstFailTime = 0.f;
+	NavRecoveryCounter = 0;
+
+	AEmpathAIController* const AI = GetEmpathAICon();
+	if (AI)
+	{
+		AI->ClearNavRecoveryDestination();
+	}
+}
+
+void AEmpathCharacter::ReceiveTickNavMeshRecovery_Implementation(float DeltaTime, FVector Location, FVector RecoveryDestination)
+{
+	// By default, jump to the location
+	float JumpArc = FMath::RandRange(FMath::Min(NavRecoveryJumpArcMin, NavRecoveryJumpArcMax),
+		FMath::Max(NavRecoveryJumpArcMax, NavRecoveryJumpArcMin));
+	FVector JumpVector = FVector::ZeroVector;
+	DoJump(RecoveryDestination, JumpArc, 0.95f, JumpVector, EDrawDebugTrace::None, 0.0f);
+}
+
+FVector AEmpathCharacter::GetNavRecoveryDestination() const
+{
+	AEmpathAIController* const AI = GetEmpathAICon();
+	if (AI)
+	{
+		return AI->GetNavRecoveryDestination();
+	}
+	return FVector::ZeroVector;
+}
+
+void AEmpathCharacter::GetNavSearchRadiiCurrent(float& CurrentInnerRadius, float& CurrentOuterRadius) const
+{
+	AEmpathAIController* const AI = GetEmpathAICon();
+	if (AI)
+	{
+		AI->GetNavRecoverySearchRadii(CurrentInnerRadius, CurrentOuterRadius);
+	}
+	else
+	{
+		GetNavSearchRadiiDefault(CurrentInnerRadius, CurrentOuterRadius);
+	}
+}
+
+void AEmpathCharacter::GetNavSearchRadiiDefault(float& DefaultInnerRadius, float& DefaultOuterRadius) const
+{
+	const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
+	DefaultInnerRadius = CurrentSettings.SearchInnerRadius;
+	DefaultOuterRadius = CurrentSettings.SearchOuterRadius;
+}
+
+void AEmpathCharacter::SetNavSearchRadiiCurrent(float NewInnerRadius, float NewOuterRadius)
+{
+	AEmpathAIController* const AI = Cast<AEmpathAIController>(GetController());
+	if (AI)
+	{
+		AI->SetNavRecoverySearchRadii(NewInnerRadius, NewOuterRadius);
+	}
+}
+
+void AEmpathCharacter::ExpandNavSearchRadiiCurrent(float InnerGrowth, float OuterGrowth)
+{
+	// Do not allow the inner to outgrow the outer
+	InnerGrowth = FMath::Min(InnerGrowth, OuterGrowth);
+	if (InnerGrowth >= 0.f && OuterGrowth >= 0.f)
+	{
+		float CurrentInnerRadius;
+		float CurrentOuterRadius;
+		GetNavSearchRadiiCurrent(CurrentInnerRadius, CurrentOuterRadius);
+
+		const float NewInnerRadius = CurrentInnerRadius + InnerGrowth;
+		const float NewOuterRadius = CurrentOuterRadius + OuterGrowth;
+
+		UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Growing search radii [%.2f, %.2f] -> [%.2f, %.2f]"), *GetNameSafe(this), CurrentInnerRadius, CurrentOuterRadius, NewInnerRadius, NewOuterRadius);
+		SetNavSearchRadiiCurrent(NewInnerRadius, NewOuterRadius);
+	}
+}
+
+const FEmpathNavRecoverySettings& AEmpathCharacter::GetCurrentNavRecoverySettings() const
+{
+	if (IsFailingNavigationFromValidNavMesh() && (NavRecoveryAbility == EEmpathNavRecoveryAbility::OnNavMeshIsland))
+	{
+		return NavRecoverySettingsOnIsland;
+	}
+	else
+	{
+		return NavRecoverySettingsOffMesh;
+	}
+}
+
+bool AEmpathCharacter::IsFailingNavigationFromValidNavMesh() const
+{
+	return bFailedNavigation && bFailedNavigationStartedOnNavMesh;
+}
+
+
+void AEmpathCharacter::SetNavRecoveryDestination(FVector Destination)
+{
+	AEmpathAIController* const AI = Cast<AEmpathAIController>(GetController());
+	if (AI)
+	{
+		AI->SetNavRecoveryDestination(Destination);
+	}
+}
+
+void AEmpathCharacter::OnTickNavMeshRecovery(FEmpathNavRecoverySettings const& CurrentSettings, float DeltaTime, FVector Location, FVector RecoveryDestination)
+{
+	ensure(IsFailingNavigation());
+	ensure(!RecoveryDestination.IsZero());
+
+	// Try automatic recovery methods if requested.
+	bool bRecovered = false;
+
+	FVector ProjectedPoint = FVector::ZeroVector;
+	if ((NavRecoveryAbility == EEmpathNavRecoveryAbility::OffNavMesh) || (IsFailingNavigationFromValidNavMesh() == false))
+	{
+		// Can only recover from off nav mesh, or we started off navmesh so just want to get there.
+		bRecovered = UEmpathFunctionLibrary::EmpathProjectPointToNavigation(this, ProjectedPoint, Location, nullptr, nullptr, NavRecoveryTestExtent);
+	}
+	else if (NavRecoveryAbility == EEmpathNavRecoveryAbility::OnNavMeshIsland)
+	{
+		// Recovered if we can now path to the desired goal location (that was off the island).
+		ProjectedPoint = GetPathingSourceLocation();
+		bRecovered = UEmpathFunctionLibrary::EmpathHasPathToLocation(this, RecoveryDestination);
+	}
+	else
+	{
+		// Do nothing.
+	}
+
+	// See if we recovered.
+	if (bRecovered)
+	{
+		NAVRECOVERY_LOC_DURATION(ProjectedPoint, GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.85f, FColor::Green);
+		NAVRECOVERY_LOC_DURATION(RecoveryDestination, GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.85f, FColor::Green);
+		NAVRECOVERY_LINE_DURATION(ProjectedPoint, RecoveryDestination, FColor::Green);
+		OnNavMeshRecovered();
+	}
+	else
+	{
+		if (CurrentSettings.NavRecoverySkipFrames <= 0 || (NavRecoveryCounter % (CurrentSettings.NavRecoverySkipFrames + 1)) == 0)
+		{
+			UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Tick recovery from location [%s] -> [%s] (dist=%.2f, dist2D=%.2f) StartedOnMesh=%d"),
+				*GetNameSafe(this), *Location.ToString(), *RecoveryDestination.ToString(), (Location - RecoveryDestination).Size(), (Location - RecoveryDestination).Size2D(), bFailedNavigationStartedOnNavMesh);
+			NAVRECOVERY_LOC(Location, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Cyan);
+			NAVRECOVERY_LOC(RecoveryDestination, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Cyan);
+			NAVRECOVERY_LINE(Location, RecoveryDestination, FColor::Cyan);
+
+			ReceiveTickNavMeshRecovery(DeltaTime, Location, RecoveryDestination);
+		}
+		else
+		{
+			UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Skipped recovery from location [%s] -> [%s] (dist=%.2f, dist2D=%.2f) StartedOnMesh=%d"),
+				*GetNameSafe(this), *Location.ToString(), *RecoveryDestination.ToString(), (Location - RecoveryDestination).Size(), (Location - RecoveryDestination).Size2D(), bFailedNavigationStartedOnNavMesh);
+		}
+		NavRecoveryCounter++;
+	}
+}
+
+void AEmpathCharacter::OnNavMeshRecoveryFailed(FVector Location, float TimeSinceRecoveryStart)
+{
+	UE_LOG(LogNavRecovery, Warning, TEXT("%s: Recovery has FAILED from location [%s] StartedOnMesh=%d"), *GetNameSafe(this), *Location.ToString(), bFailedNavigationStartedOnNavMesh);
+	ReceiveNavMeshRecoveryFailed(Location, TimeSinceRecoveryStart, bFailedNavigationStartedOnNavMesh);
+}
+
+void AEmpathCharacter::ReceiveFailedToFindRecoveryDestination_Implementation(float DeltaTime, FVector Location, float TimeSinceStartRecovery)
+{
+	// Default is to expand out the search radii
+	const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
+	const float InnerGrowth = FMath::Max(0.f, CurrentSettings.SearchRadiusGrowthRateInner * DeltaTime);
+	const float OuterGrowth = FMath::Max(0.f, CurrentSettings.SearchRadiusGrowthRateOuter * DeltaTime);
+	ExpandNavSearchRadiiCurrent(InnerGrowth, OuterGrowth);
 }

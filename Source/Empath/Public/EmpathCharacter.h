@@ -7,6 +7,7 @@
 #include "EmpathTeamAgentInterface.h"
 #include "GameFramework/Character.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "EmpathTypes.h"
 #include "EmpathCharacter.generated.h"
 
 // Stat groups for UE Profiler
@@ -16,6 +17,9 @@ DECLARE_STATS_GROUP(TEXT("EmpathCharacter"), STATGROUP_EMPATH_Character, STATCAT
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FOnCharacterDeathDelegate, FHitResult const&, KillingHitInfo, FVector, KillingHitImpulseDir, const AController*, DeathInstigator, const AActor*, DeathCauser, const UDamageType*, DeathDamageType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCharacterStunnedDelegate, const AController*, StunInstigator, const AActor*, StunCauser, const float, StunDuration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterStunEndDelegate);
+
+// Log categories
+DEFINE_LOG_CATEGORY_STATIC(LogNavRecovery, Log, All);
 
 class AEmpathAIController;
 class UDamageType;
@@ -57,7 +61,7 @@ public:
 
 	/** Returns the controlling Empath AI controller. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
-	AEmpathAIController* GetEmpathAICon();
+	AEmpathAIController* GetEmpathAICon() const;
 
 	/** Wrapper for Get Distance To function that accounts for VR characters. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Utility")
@@ -156,6 +160,14 @@ public:
 	/** The minimum effective combat range for the character. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
 	float MinEffectiveDistance;
+
+	/** The lowest arc of our nav recovery jump, where 1.0f is a straight line to the target, and 0.0f is straight up. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
+	float NavRecoveryJumpArcMin;
+
+	/** The highest arc of our nav recovery jump, where 1.0f is a straight line to the target, and 0.0f is straight up. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Combat")
+	float NavRecoveryJumpArcMax;
 
 
 	// ---------------------------------------------------------
@@ -357,6 +369,158 @@ public:
 	/** Sets speed and deceleration for this character. Use this instead of setting directly. If either value is negative, current value will remain unchanged. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Movement")
 	void SetWalkingSpeedData(float WalkingSpeed, float WalkingBrakingDeceleration);
+
+
+	// ---------------------------------------------------------
+	//	Nav mesh recovery
+	
+	/** Whether this character should use the navigation recovery system. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Navigation")
+	bool bShouldUseNavRecovery;
+
+	/** The type of navigation recovery this character possesses. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Navigation")
+	EEmpathNavRecoveryAbility NavRecoveryAbility;
+
+	/** Settings for how to search for the navmesh to recover when off the navmesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Navigation")
+	FEmpathNavRecoverySettings NavRecoverySettingsOffMesh;
+
+	/** Settings for how to search for the navmesh to recover when on a navmesh island */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Navigation")
+	FEmpathNavRecoverySettings NavRecoverySettingsOnIsland;
+
+	/** Gets current settings based on whether we started on an island or not (if we support island recovery). */
+	const FEmpathNavRecoverySettings& GetCurrentNavRecoverySettings() const;
+
+	/** */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Navigation")
+	FVector NavRecoveryTestExtent;
+
+	/** Whether we expect navmesh pathing to be successful in our current state. */
+	bool ExpectsSuccessfulPathInCurrentState() const;
+
+	/** Used for tracking successful path and EQS queries. 
+	* The latter doesn't allow us to check a return value or respond to the result, 
+	* so we have to wrap requests with this and then see if bPathRequestSuccessful is set. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Empath|Navigation")
+	void OnRequestingPath();
+
+	/** Called on path request success to clear any lingering nav recovery. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Empath|Navigation")
+	void OnPathRequestSuccess(FVector GoalLocation);
+
+	/** Called after pathing failure, to determine if it's time to start regaining navmesh. 
+	* If it's time to start, sets bFailingNavMesh to true and returns true. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Empath|Navigation")
+	bool OnPathRequestFailed(FVector GoalLocation);
+
+	/** Begins nav recovery, including resetting the state variables and signaling the
+	* AI controller to begin running an EQS query. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation")
+	void OnStartNavRecovery(FVector FailedGoalLocation, bool bCurrentlyOnNavMesh);
+
+	/** Ends the lost navmesh state flow. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Empath|Navigation")
+	void OnNavMeshRecovered();
+
+	/** Called when recovery state fails. By default, restarts the process. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "OnNavMeshRecoveryFailed"))
+	void ReceiveNavMeshRecoveryFailed(FVector Location, float TimeSinceStartRecovery, bool bWasOnNavMeshAtStart);
+
+	/** Resets all state variables and clears all failures. */
+	void ClearNavRecoveryState();
+
+	/** Returns nav recovery destination. Zero if not set and invalid. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	FVector GetNavRecoveryDestination() const;
+
+	/** Returns the current nav recovery search radius. Returns default if no current search radius s found. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	void GetNavSearchRadiiCurrent(float& CurrentInnerRadius, float& CurrentOuterRadius) const;
+
+	/** Returns the default nav recovery search radius. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	void GetNavSearchRadiiDefault(float& DefaultInnerRadius, float& DefaultOuterRadius) const;
+
+	/** Sets the current nav recovery search radius. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	void SetNavSearchRadiiCurrent(float NewInnerRadius, float NewOuterRadius);
+
+	/** Expands the current nav recovery search radius, */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	void ExpandNavSearchRadiiCurrent(float InnerGrowth, float OuterGrowth);
+
+	/** Sets the nav recovery destination. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	void SetNavRecoveryDestination(FVector Destination);
+
+	/** Returns whether we are currently failing navigation. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	bool IsFailingNavigation() const { return bFailedNavigation; }
+
+	/** Returns true if recovery started while on nav mesh. If so, it's probably on an island compared to the failed destinations. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Navigation")
+	bool IsFailingNavigationFromValidNavMesh() const;
+
+	/** Checks to see whether we have recovered the navmesh. */
+	virtual void OnTickNavMeshRecovery(FEmpathNavRecoverySettings const& CurrentSettings, float DeltaTime, FVector Location, FVector RecoveryDestination);
+
+	/** Called after checking to see whether we have recovered the navmesh. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "OnTickNavMeshRecovery"))
+	void ReceiveTickNavMeshRecovery(float DeltaTime, FVector Location, FVector RecoveryDestination);
+
+	/** Called when we failed to find a recovery destination. */
+	virtual void OnNavMeshRecoveryFailed(FVector Location, float TimeSinceStartRecovery);
+
+	/** Called when we failed to find a recovery destination. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "OnFailedToFindRecoveryDestination"))
+	void ReceiveFailedToFindRecoveryDestination(float DeltaTime, FVector Location, float TimeSinceStartRecovery);
+
+	/** Used for tracking successful path and EQS queries. The latter doesn't allow us to check a return value or respond to the result, so we have to wrap requests with this. */
+	UPROPERTY(BlueprintReadWrite, Category = "Empath|Navigation")
+	bool bPathRequestSuccessful;
+
+	/** Whether a path request is currently active. */
+	UPROPERTY(BlueprintReadWrite, Category = "Empath|Navigation")
+	bool bPathRequestActive;
+
+	/** True if failing navmesh and trying to recover it. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	bool bFailedNavigation;
+
+	/** True if we started failing while on navmesh. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	bool bFailedNavigationStartedOnNavMesh;
+
+	/** The current count of nav mesh pathing failures since the last success. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	int32 NavFailureCurrentCount;
+
+	/** The first time we failed to find a path. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	float NavFailureFirstFailTime;
+
+	/** The time we began nav mesh recovery. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	float NavRecoveryStartTime;
+
+	/** Our location when we began recovery. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	FVector NavRecoveryStartActorLocation;
+
+	/** Our pathing location when we began recovery. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	FVector NavRecoveryStartPathingLocation;
+
+	/** Oyr goal location when we began recovery. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	FVector NavRecoveryFailedGoalLocation;
+
+	/** Counter that is incremented each time we call TickNavMeshRecovery. Reset to 0 when recovery completes/starts.  */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
+	int32 NavRecoveryCounter;
+
 
 protected:
 

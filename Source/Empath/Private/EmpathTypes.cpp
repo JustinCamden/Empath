@@ -13,6 +13,9 @@ const FName FEmpathBBKeys::DefendGuardRadius(TEXT("DefendGuardRadius"));
 const FName FEmpathBBKeys::DefendPursuitRadius(TEXT("DefendPursuitRadius"));
 const FName FEmpathBBKeys::FleeTarget(TEXT("FleeTarget"));
 const FName FEmpathBBKeys::FleeTargetRadius(TEXT("FleeTargetRadius"));
+const FName FEmpathBBKeys::NavRecoveryDestination(TEXT("NavRecoveryDestination"));
+const FName FEmpathBBKeys::NavRecoverySearchInnerRadius(TEXT("NavRecoverySearchInnerRadius"));
+const FName FEmpathBBKeys::NavRecoverySearchOuterRadius(TEXT("NavRecoverySearchOuterRadius"));
 
 const FName FEmpathCollisionrProfiles::Ragdoll(TEXT("Ragdoll"));
 const FName FEmpathCollisionrProfiles::PawnIgnoreAll(TEXT("PawnIgnoreAll"));

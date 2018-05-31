@@ -12,6 +12,7 @@
 DECLARE_STATS_GROUP(TEXT("Empath Function Library"), STATGROUP_EMPATH_FunctionLibrary, STATCAT_Advanced);
 
 class AEmpathAIManager;
+class AEmpathCharacter;
 
 /**
  * 
@@ -108,4 +109,12 @@ public:
 	/** Determines the ascent and descent time of a jump. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Utility", meta = (WorldContext = "WorldContextObject", UnsafeDuringActorConstruction = "true"))
 	static void CalculateJumpTimings(UObject* WorldContextObject, FVector LaunchVelocity, FVector StartLocation, FVector EndLocation, float& OutAscendingTime, float& OutDescendingTime);
+
+	/** Custom navigation projection that uses the agent, rather than the world, as a fallback for if no nav data or filter class is provided. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI", meta = (WorldContext = "WorldContextObject"))
+	static bool EmpathProjectPointToNavigation(UObject* WorldContextObject, FVector& ProjectedPoint, FVector Point, ANavigationData* NavData = nullptr, TSubclassOf<UNavigationQueryFilter> FilterClass = nullptr, const FVector QueryExtent = FVector::ZeroVector);
+
+	/** Custom query that uses the agent, rather than the world, as a fallback for if no nav data or filter class is provided. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	static bool EmpathHasPathToLocation(AEmpathCharacter* EmpathCharacter, FVector Point, ANavigationData* NavData = nullptr, TSubclassOf<UNavigationQueryFilter> FilterClass = nullptr);
 };

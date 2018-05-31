@@ -535,14 +535,19 @@ FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& Mo
 	FPathFollowingRequestResult const Result = Super::MoveTo(MoveRequest, OutPath);
 
 	const FVector GoalLocation = MoveRequest.GetDestination();
+	AEmpathCharacter* const MyChar = GetEmpathChar();
 
-	// If success or already at the location, update the Blackboard
+	// If success or already at the location, update the Blackboard, and the Empath character
 	if (Result.Code == EPathFollowingRequestResult::RequestSuccessful ||
 		Result.Code == EPathFollowingRequestResult::AlreadyAtGoal)
 	{
 		if (Blackboard)
 		{
 			Blackboard->SetValueAsVector(FEmpathBBKeys::GoalLocation, GoalLocation);
+		}
+		if (MyChar)
+		{
+			MyChar->OnPathRequestSuccess(GoalLocation);
 		}
 	}
 
@@ -575,6 +580,15 @@ FPathFollowingRequestResult AEmpathAIController::MoveTo(const FAIMoveRequest& Mo
 			{
 				MyPawnCapsule->OnComponentHit.AddDynamic(this, &AEmpathAIController::OnCapsuleBumpDuringMove);
 			}
+		}
+	}
+
+	// If failure, alert the empath character
+	else if (Result.Code == EPathFollowingRequestResult::Failed)
+	{
+		if (MyChar)
+		{
+			MyChar->OnPathRequestFailed(GoalLocation);
 		}
 	}
 	return Result;
@@ -1577,4 +1591,60 @@ bool AEmpathAIController::GetUpcomingJumpLinkAnimInfo(float& OutPathDistToJumpLi
 
 	return false;
 
+}
+
+FVector AEmpathAIController::GetNavRecoveryDestination() const
+{
+	if (Blackboard)
+	{
+		return Blackboard->GetValueAsVector(FEmpathBBKeys::NavRecoveryDestination);
+	}
+
+	return FVector::ZeroVector;
+}
+
+void AEmpathAIController::SetNavRecoveryDestination(FVector Destination)
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsVector(FEmpathBBKeys::NavRecoveryDestination, Destination);
+	}
+}
+
+void AEmpathAIController::GetNavRecoverySearchRadii(float& InnerRadius, float& OuterRadius) const
+{
+	if (InnerRadius && OuterRadius)
+	{
+		if (Blackboard)
+		{
+			InnerRadius = Blackboard->GetValueAsFloat(FEmpathBBKeys::NavRecoverySearchInnerRadius);
+			OuterRadius = Blackboard->GetValueAsFloat(FEmpathBBKeys::NavRecoverySearchOuterRadius);
+		}
+		else
+		{
+			// Return default values
+			InnerRadius = 100.f;
+			OuterRadius = 300.f;
+		}
+	}
+}
+
+void AEmpathAIController::SetNavRecoverySearchRadii(float InnerRadius, float OuterRadius)
+{
+	if (Blackboard)
+	{
+		InnerRadius = FMath::Max(InnerRadius, 0.f);
+		OuterRadius = FMath::Max(InnerRadius + 100.f, OuterRadius);
+
+		Blackboard->SetValueAsFloat(FEmpathBBKeys::NavRecoverySearchInnerRadius, InnerRadius);
+		Blackboard->SetValueAsFloat(FEmpathBBKeys::NavRecoverySearchOuterRadius, OuterRadius);
+	}
+}
+
+void AEmpathAIController::ClearNavRecoveryDestination()
+{
+	if (Blackboard)
+	{
+		Blackboard->SetValueAsVector(FEmpathBBKeys::NavRecoveryDestination, FVector::ZeroVector);
+	}
 }

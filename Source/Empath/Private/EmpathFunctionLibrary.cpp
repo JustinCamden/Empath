@@ -4,6 +4,8 @@
 #include "EmpathPlayerCharacter.h"
 #include "EmpathGameModeBase.h"
 #include "EmpathAimLocationInterface.h"
+#include "AIController.h"
+#include "EmpathCharacter.h"
 
 DECLARE_CYCLE_STAT(TEXT("PredictProjectilePath"), STAT_EMPATH_PredictProjectilePath, STATGROUP_EMPATH_FunctionLibrary);
 DECLARE_CYCLE_STAT(TEXT("SuggestProjectileVelocity_CustomArc"), STAT_EMPATH_SuggestProjectileVelocity, STATGROUP_EMPATH_FunctionLibrary);
@@ -356,5 +358,96 @@ void UEmpathFunctionLibrary::CalculateJumpTimings(UObject* WorldContextObject, F
 		OutAscendingTime = 0.0f;
 		OutDescendingTime = TotalTime;
 	}
+}
+
+bool UEmpathFunctionLibrary::EmpathProjectPointToNavigation(UObject* WorldContextObject, FVector& ProjectedPoint, FVector Point, ANavigationData* NavData, TSubclassOf<UNavigationQueryFilter> FilterClass, const FVector QueryExtent)
+{
+	UWorld* const World = WorldContextObject->GetWorld();
+	UNavigationSystem* const NavSys = UNavigationSystem::GetCurrent(World);
+	if (NavSys)
+	{
+		// If no nav data is provided, try and find one from the world context object.
+		// Should work if it is a Character or AController.
+		if (NavData == nullptr)
+		{
+			const FNavAgentProperties* AgentProps = nullptr;
+			if (INavAgentInterface* AgentContext = Cast<INavAgentInterface>(WorldContextObject))
+			{
+				AgentProps = &AgentContext->GetNavAgentPropertiesRef();
+			}
+
+			NavData = (AgentProps ? NavSys->GetNavDataForProps(*AgentProps) : NavSys->GetMainNavData(FNavigationSystem::DontCreate));
+		}
+
+		// If no nav filter is provided, try and find one from the world context object.
+		// Should work if it is an AController.
+		if (FilterClass == nullptr)
+		{
+			AAIController* AI = Cast<AAIController>(WorldContextObject);
+			if (AI == nullptr)
+			{
+				if (APawn* Pawn = Cast<APawn>(WorldContextObject))
+				{
+					AI = Cast<AAIController>(Pawn->GetController());
+				}
+			}
+
+			if (AI)
+			{
+				FilterClass = AI->GetDefaultNavigationFilterClass();
+			}
+		}
+
+		// Finally, do the actually projection
+		if (NavData)
+		{
+			FNavLocation ProjectedNavLoc(Point);
+			bool const bRet = NavSys->ProjectPointToNavigation(Point, ProjectedNavLoc, (QueryExtent.IsNearlyZero() ? INVALID_NAVEXTENT : QueryExtent), NavData,
+				UNavigationQueryFilter::GetQueryFilter(*NavData, WorldContextObject, FilterClass));
+			ProjectedPoint = ProjectedNavLoc.Location;
+			return bRet;
+		}
+	}
+
+	return false;
+}
+
+bool UEmpathFunctionLibrary::EmpathHasPathToLocation(AEmpathCharacter* EmpathCharacter, FVector Destination, ANavigationData* NavData, TSubclassOf<UNavigationQueryFilter> FilterClass)
+{
+	UWorld* const World = EmpathCharacter->GetWorld();
+	UNavigationSystem* const NavSys = UNavigationSystem::GetCurrent(World);
+	if (NavSys)
+	{
+		// Use correct nav mesh
+		if (NavData == nullptr)
+		{
+			// If WorldContextObject is a Character or AIController, get agent properties from them.
+			const FNavAgentProperties* AgentProps = &EmpathCharacter->GetNavAgentPropertiesRef();
+			NavData = (AgentProps ? NavSys->GetNavDataForProps(*AgentProps) : NavSys->GetMainNavData(FNavigationSystem::DontCreate));
+		}
+
+		// Use correct filter class
+		if (FilterClass == nullptr)
+		{
+			if (AAIController* AI = Cast<AAIController>(EmpathCharacter->GetController()))
+			{
+				FilterClass = AI->GetDefaultNavigationFilterClass();
+			}
+		}
+
+		// Now do the path query
+		if (NavData)
+		{
+			const FVector SourceLocation = EmpathCharacter->GetPathingSourceLocation();
+			FSharedConstNavQueryFilter NavFilter = UNavigationQueryFilter::GetQueryFilter(*NavData, EmpathCharacter, FilterClass);
+			FPathFindingQuery Query(*EmpathCharacter, *NavData, SourceLocation, Destination, NavFilter);
+			Query.SetAllowPartialPaths(false);
+
+			const bool bPathExists = NavSys->TestPathSync(Query, EPathFindingMode::Regular);
+			return bPathExists;
+		}
+	}
+
+	return false;
 }
 

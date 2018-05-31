@@ -188,8 +188,24 @@ public:
 	bool IsUsingCustomNavLink() const;
 
 	/** Returns true if the upcoming path contains a jump. */
-	UFUNCTION(BlueprintCallable, Category = "AI")
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	bool CurrentPathHasUpcomingJumpLink() const;
+
+	/** Get the goal location for the most recent nav recovery request. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	FVector GetNavRecoveryDestination() const;
+
+	/** Sets the goal location nav recovery. Normally set through EQS queries but can be changed. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void SetNavRecoveryDestination(FVector Destination);
+
+	/** Sets the current nav recovery search radius. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void SetNavRecoverySearchRadii(float InnerRadius, float OuterRadius);
+
+	/** Returns the current nav recovery search radius. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	void GetNavRecoverySearchRadii(float& InnerRadius, float& OuterRadius) const;
 
 	// ---------------------------------------------------------
 	//	Events and receives
@@ -334,7 +350,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
 	void RequestReposition() { bShouldReposition = true; };
 
-
 	/** Whether this AI should automatically claim navlinks when moving. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	bool bClaimNavLinksOnMove;
@@ -351,6 +366,10 @@ public:
 
 	/** Releases claims on all claimed nav links. */
 	void ReleaseAllClaimedNavLinks();
+
+	/** Clears the nav recovery destination. */
+	void ClearNavRecoveryDestination();
+
 
 	// ---------------------------------------------------------
 	//	Behavior modes

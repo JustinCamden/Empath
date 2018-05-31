@@ -65,17 +65,17 @@ void AEmpathAIManager::BeginPlay()
 			}
 			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("%s ERROR: Player is not an Empath VR Character!"), *GetName());
+				UE_LOG(LogAIManager, Warning, TEXT("%s: ERROR: Player is not an Empath VR Character!"), *GetNameSafe(this));
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("%s ERROR: Player not possessing pawn!"), *GetName());
+			UE_LOG(LogAIManager, Warning, TEXT("%s: ERROR: Player not possessing pawn!"), *GetNameSafe(this));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s ERROR: Player not found!"), *GetName());
+		UE_LOG(LogAIManager, Warning, TEXT("%s: ERROR: Player not found!"), *GetNameSafe(this));
 	}
 }
 
