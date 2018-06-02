@@ -535,6 +535,7 @@ protected:
 	/** If true, next WantsToAdvance will return true. Reset when WantsToAdvance is called, so that we don't keep returning true infinitely. */
 	bool bShouldReposition;
 
+	UFUNCTION()
 	void OnCapsuleBumpDuringMove(UPrimitiveComponent* HitComp,
 		AActor* OtherActor, UPrimitiveComponent* OtherComp, 
 		FVector NormalImpulse, 

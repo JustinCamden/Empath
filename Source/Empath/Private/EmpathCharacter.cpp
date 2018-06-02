@@ -10,6 +10,7 @@
 #include "EmpathCharacterMovementComponent.h"
 #include "EmpathPathFollowingComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Kismet/KismetMathLibrary.h"
 
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("Empath Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
@@ -19,26 +20,26 @@ DECLARE_CYCLE_STAT(TEXT("Empath Is Ragdoll At Rest Check"), STAT_EMPATH_IsRagdol
 DEFINE_LOG_CATEGORY_STATIC(LogNavRecovery, Log, All);
 
 // Console variable setup so we can enable and disable nav recovery debugging from the console
-static int32 EmpathNavRecoveryDrawDebug = 0;
-FAutoConsoleVariableRef CVarEmpathNavRecoveryDrawDebug(
+static TAutoConsoleVariable<int32> CVarEmpathNavRecoveryDrawDebug(
 	TEXT("Empath.NavRecoveryDrawDebug"),
-	EmpathNavRecoveryDrawDebug,
+	0,
 	TEXT("Whether to enable nav recovery debug.\n")
-	TEXT("0: Disable, 1: Enable"),
-	ECVF_Cheat);
+	TEXT("0: Disable, 1: Enabled"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+static const auto NavRecoveryDrawDebug = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.NavRecoveryDrawDebug"));
 
-static float EmpathNavRecoveryDebugLifetime = 3.0f;
-FAutoConsoleVariableRef CVarEmpathNavRecoveryDebugLifetime(
+static TAutoConsoleVariable<float> CVarEmpathNavRecoveryDrawLifetime(
 	TEXT("Empath.NavRecoveryDrawLifetime"),
-	EmpathNavRecoveryDebugLifetime,
+	3.0f,
 	TEXT("Duration of debug drawing for nav recovery, in seconds."),
-	ECVF_Cheat);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+static const auto NavRecoveryDrawLifetime = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.NavRecoveryDrawLifetime"));
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-#define NAVRECOVERY_LOC(_Loc, _Radius, _Color)				if (EmpathNavRecoveryDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color); }
-#define NAVRECOVERY_LINE(_Loc, _Dest, _Color)				if (EmpathNavRecoveryDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color); }
-#define NAVRECOVERY_LOC_DURATION(_Loc, _Radius, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, EmpathNavRecoveryDebugLifetime); }
-#define NAVRECOVERY_LINE_DURATION(_Loc, _Dest, _Color)		if (EmpathNavRecoveryDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, EmpathNavRecoveryDebugLifetime); }
+#define NAVRECOVERY_LOC(_Loc, _Radius, _Color)				if (NavRecoveryDrawDebug->GetInt()) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, -1.0f, 0, 3.0f); }
+#define NAVRECOVERY_LINE(_Loc, _Dest, _Color)				if (NavRecoveryDrawDebug->GetInt()) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, -1.0f, 0, 3.0f); }
+#define NAVRECOVERY_LOC_DURATION(_Loc, _Radius, _Color)		if (NavRecoveryDrawDebug->GetInt()) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, NavRecoveryDrawLifetime->GetFloat(), 0, 3.0f); }
+#define NAVRECOVERY_LINE_DURATION(_Loc, _Dest, _Color)		if (NavRecoveryDrawDebug->GetInt()) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, NavRecoveryDrawLifetime->GetFloat(), 0, 3.0f); }
 #else
 #define NAVRECOVERY_LOC(_Loc, _Radius, _Color)				/* nothing */
 #define NAVRECOVERY_LINE(_Loc, _Dest, _Color)				/* nothing */
@@ -77,7 +78,6 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 	StunTimeThreshold = 0.5f;
 	StunDurationDefault = 3.0f;
 	StunImmunityTimeAfterStunRecovery = 3.0f;
-
 
 	// General combat
 	MaxEffectiveDistance = 250.0f;
@@ -144,6 +144,8 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 
 	// Movement
 	GetCharacterMovement()->bAlwaysCheckFloor = false;
+	ClimbingOffset = FVector(60.0f, 0.0f, 105.0f);
+	ClimbSpeed = 300.0f;
 }
 
 // Called when the game starts or when spawned
@@ -1187,7 +1189,7 @@ void AEmpathCharacter::OnStartNavRecovery_Implementation(FVector FailedGoalLocat
 		const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
 		AI->SetNavRecoverySearchRadii(CurrentSettings.SearchInnerRadius, CurrentSettings.SearchOuterRadius);
 	}
-
+	//DrawDebugSphere(GetWorld(), FailedGoalLocation, GetCapsuleComponent()->GetScaledCapsuleRadius()+50.0f, 16, FColor::Red, false, 5.0f, 0, 5.0f);
 	UE_LOG(LogNavRecovery, Warning, TEXT("%s: Failed Navigation, starting recovery from location [%s], goal [%s] (dist=%.2f, dist2D=%.2f) StartedOnMesh=%d"),
 		*GetNameSafe(this), *NavRecoveryStartActorLocation.ToString(), *FailedGoalLocation.ToString(), (NavRecoveryStartActorLocation - FailedGoalLocation).Size(), (NavRecoveryStartActorLocation - FailedGoalLocation).Size2D(), bFailedNavigationStartedOnNavMesh);
 	NAVRECOVERY_LOC_DURATION(NavRecoveryStartActorLocation, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Red);
@@ -1400,3 +1402,90 @@ void AEmpathCharacter::ReceiveFailedToFindRecoveryDestination_Implementation(flo
 	const float OuterGrowth = FMath::Max(0.f, CurrentSettings.SearchRadiusGrowthRateOuter * DeltaTime);
 	ExpandNavSearchRadiiCurrent(InnerGrowth, OuterGrowth);
 }
+
+void AEmpathCharacter::ClimbTo_Implementation(FTransform const& LedgeTransform)
+{
+	// Get the destination location based on our offset
+	FVector FinalLocation = LedgeTransform.TransformPosition(ClimbingOffset);
+	ClimbEndLocation = FTransform(LedgeTransform.GetRotation(), FinalLocation, LedgeTransform.GetScale3D());
+	bIsClimbing = true;
+
+	// Fire notifies and return
+	OnClimbTo();
+	return;
+}
+
+void AEmpathCharacter::OnClimbTo_Implementation()
+{
+	// By default, jump straight to climbing
+	FVector Dist = ClimbEndLocation.GetLocation() - GetActorLocation();
+	ClimbInterp_Start(CalcClimbDuration(Dist.Z));
+	return;
+}
+
+float AEmpathCharacter::CalcClimbDuration(float Distance) const
+{
+	return Distance / ClimbSpeed;
+}
+
+void AEmpathCharacter::ClimbInterp_Start_Implementation(float ClimbDuration)
+{
+	// Initialize variables
+	CurrentClimbDuration = ClimbDuration;
+	CurrentClimbPercent = 0.0f;
+	ClimbStartLocation = GetTransform();
+	
+	// Disable our current movement mode for now
+	UCharacterMovementComponent* CharMovement = GetCharacterMovement();
+	if (CharMovement)
+	{
+		CharMovement->SetMovementMode(MOVE_None);
+	}
+}
+
+void AEmpathCharacter::ClimbInterp_Tick_Implementation(float DeltaTime)
+{
+	// Update climb percent and the actor transform
+	CurrentClimbPercent = FMath::Min(CurrentClimbPercent + (DeltaTime / CurrentClimbDuration), 1.0f);
+	SetActorTransform(UKismetMathLibrary::TLerp(GetActorTransform(), ClimbEndLocation, CurrentClimbPercent));
+	return;
+}
+
+void AEmpathCharacter::ClimbInterp_End_Implementation()
+{
+	SetActorTransform(ClimbEndLocation);
+	EndClimb(false);
+}
+
+void AEmpathCharacter::EndClimb(bool bInterrupted)
+{
+	// Signal our AI controller that the climb movement is finished
+	if (AEmpathAIController* EmpathAICon = GetEmpathAICon())
+	{
+		EmpathAICon->FinishClimb();
+	}
+
+	// Update movement mode
+	UCharacterMovementComponent* CMC = GetCharacterMovement();
+	if (CMC)
+	{
+		if (bInterrupted)
+		{
+			if (CMC->IsMovingOnGround())
+			{
+				CMC->SetMovementMode(MOVE_Walking);
+			}
+			else
+			{
+				CMC->SetMovementMode(MOVE_Falling);
+			}
+		}
+		else
+		{
+			CMC->SetMovementMode(MOVE_Falling);
+		}
+	}
+
+	bIsClimbing = false;
+}
+

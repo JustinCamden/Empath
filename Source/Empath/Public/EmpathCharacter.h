@@ -367,6 +367,69 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Empath|Movement")
 	void SetWalkingSpeedData(float WalkingSpeed, float WalkingBrakingDeceleration);
 
+	/**
+	* Starts a climb action.
+	* @param LedgeTransform is the transform of the very edge of the ledge, facing the direction the character will face when climbing.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Movement")
+	void ClimbTo(FTransform const& LedgeTransform);
+
+	/** The destination of our climb action*/
+	UPROPERTY(BlueprintReadWrite)
+	FTransform ClimbEndLocation;
+
+	/** The starting location our climb action*/
+	UPROPERTY(BlueprintReadWrite)
+	FTransform ClimbStartLocation;
+
+	/** Whether we are currently climbing. */
+	UPROPERTY(BlueprintReadWrite, Category = "Empath|Movement")
+	bool bIsClimbing;
+
+	/** Our ending offset from the final climb location, in local space. */
+	UPROPERTY(BlueprintReadWrite, Category = "Empath|Movement")
+	FVector ClimbingOffset;
+
+	/** The default climbing speed of this character. */
+	UPROPERTY(BlueprintReadWrite, Category = "Empath|Movement")
+	float ClimbSpeed;
+
+	/** Calculates the climb duration based on the speed of the character. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Movement")
+	float CalcClimbDuration(float Distance) const;
+
+	/** Called when the character begins a climb action. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Movement")
+	void OnClimbTo();
+
+	/** The total duration of the current climb action. */
+	UPROPERTY(BlueprintReadWrite, Category = "Empath|Movement")
+	float CurrentClimbDuration;
+
+	/** The current percent from 0 to 1 of our climb action movement. */
+	UPROPERTY(BlueprintReadWrite, Category = "Empath|Movement")
+	float CurrentClimbPercent;
+
+	/** Begins the actual climbing. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Movement")
+	void ClimbInterp_Start(float ClimbDuration);
+
+	/** Continues the climbing motion. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Movement")
+	void ClimbInterp_Tick(float DeltaTime);
+
+	/** Finishes the climbing motion. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Movement")
+	void ClimbInterp_End();
+	
+	/** Ends the climbing event. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Movement")
+	void EndClimb(bool bInterrupted = false);
+
+	/** Called when the climb event ends. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Movement")
+	void OnClimbEnd(bool bInterrupted);
+
 
 	// ---------------------------------------------------------
 	//	Nav mesh recovery
@@ -510,7 +573,7 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
 	FVector NavRecoveryStartPathingLocation;
 
-	/** Oyr goal location when we began recovery. */
+	/** Our goal location when we began recovery. */
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
 	FVector NavRecoveryFailedGoalLocation;
 
@@ -541,7 +604,7 @@ private:
 	/** Whether the character is currently ragdolling. */
 	bool bRagdolling;
 
-	/** Whether the character has been signalled to get up from ragdoll. */
+	/** Whether the character has been signaled to get up from ragdoll. */
 	bool bDeferredGetUpFromRagdoll;
 
 	/** Stored reference to our control Empath AI controller */

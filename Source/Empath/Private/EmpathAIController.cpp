@@ -24,28 +24,29 @@ DEFINE_LOG_CATEGORY_STATIC(LogAIController, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogAIVision, Log, All);
 
 // Console variable setup so we can enable and disable vision debugging from the console
-static int32 EmpathAIVisionDrawDebug = 0;
-FAutoConsoleVariableRef CVarEmpathAIVisionDrawDebug(
+static TAutoConsoleVariable<int32> CVarEmpathAIVisionDrawDebug(
 	TEXT("Empath.AIVisionDrawDebug"),
-	EmpathAIVisionDrawDebug,
+	0,
 	TEXT("Whether to enable AI vision debug.\n")
-	TEXT("0: Disable, 1: Enable"),
-	ECVF_Cheat);
+	TEXT("0: Disable, 1: Enabled"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+static const auto AIVisionDrawDebug = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.AIVisionDrawDebug"));
 
-static float EmpathAIVisionDebugLifetime = 3.0f;
-FAutoConsoleVariableRef CVarEmpathAIVisionDebugLifetime(
+
+static TAutoConsoleVariable<float> CVarEmpathAIVisionDebugLifetime(
 	TEXT("Empath.AIVisionDebugLifetime"),
-	EmpathAIVisionDebugLifetime,
+	3.0f,
 	TEXT("Duration of debug drawing for AI vision, in seconds."),
-	ECVF_Cheat);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+static const auto AIVisionDebugLifetime = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.AIVisionDebugLifetime"));
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-#define AIVISION_LOC(_Loc, _Radius, _Color)									if (EmpathAIVisionDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color); }
-#define AIVISION_LINE(_Loc, _Dest, _Color)									if (EmpathAIVisionDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color); }
-#define AIVISION_CONE(_Loc, _Forward, _Dist, _Angle, _Color)				if (EmpathAIVisionDrawDebug) { DrawDebugCone(GetWorld(), _Loc, _Forward, _Dist, _Angle, _Angle, 12, _Color);}
-#define AIVISION_LOC_DURATION(_Loc, _Radius, _Color)						if (EmpathAIVisionDrawDebug) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, EmpathAIVisionDebugLifetime); }
-#define AIVISION_LINE_DURATION(_Loc, _Dest, _Color)							if (EmpathAIVisionDrawDebug) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, EmpathAIVisionDebugLifetime); }
-#define AIVISION_CONE_DURATION(_Loc, _Forward, _Dist, _Angle, _Color)		if (EmpathAIVisionDrawDebug) { DrawDebugCone(GetWorld(), _Loc, _Forward, _Dist, _Angle, _Angle, 12, _Color, false, EmpathAIVisionDebugLifetime);}
+#define AIVISION_LOC(_Loc, _Radius, _Color)									if (AIVisionDrawDebug->GetInt()) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, -1.0f, 0, 3.0f); }
+#define AIVISION_LINE(_Loc, _Dest, _Color)									if (AIVisionDrawDebug->GetInt()) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, -1.0f, 0, 3.0f); }
+#define AIVISION_CONE(_Loc, _Forward, _Dist, _Angle, _Color)				if (AIVisionDrawDebug->GetInt()) { DrawDebugCone(GetWorld(), _Loc, _Forward, _Dist, _Angle, _Angle, 12, _Color, -1.0f, 0, 3.0f);}
+#define AIVISION_LOC_DURATION(_Loc, _Radius, _Color)						if (AIVisionDrawDebug->GetInt()) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, AIVisionDebugLifetime->GetFloat(), 0, 3.0f); }
+#define AIVISION_LINE_DURATION(_Loc, _Dest, _Color)							if (AIVisionDrawDebug->GetInt()) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, AIVisionDebugLifetime->GetFloat(), 0, 3.0f); }
+#define AIVISION_CONE_DURATION(_Loc, _Forward, _Dist, _Angle, _Color)		if (AIVisionDrawDebug->GetInt()) { DrawDebugCone(GetWorld(), _Loc, _Forward, _Dist, _Angle, _Angle, 12, _Color, false, AIVisionDebugLifetime->GetFloat(), 0, 3.0f);}
 #else
 #define AIVISION_LOC(_Loc, _Radius, _Color)				/* nothing */
 #define AIVISION_LINE(_Loc, _Dest, _Color)				/* nothing */
@@ -1373,8 +1374,11 @@ void AEmpathAIController::UnregisterAIManager()
 
 void AEmpathAIController::ClimbTo_Implementation(FTransform const& LedgeTransform)
 {
-	// This is just here so that if we want to create an inherited c++ class with its own climb to function, 
-	// we can do that
+	// By default, signal the character to begin climbing
+	if (AEmpathCharacter* EmpathChar = GetEmpathChar())
+	{
+		EmpathChar->ClimbTo(LedgeTransform);
+	}
 	return;
 }
 
