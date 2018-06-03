@@ -83,6 +83,9 @@ EBPOpenVRHMDDeviceType UOpenVRExpansionFunctionLibrary::GetOpenVRHMDType()
 				"Acer AH100";
 			*/
 
+			// Manufacturer name
+			/*WindowsMR*/
+
 			if (DeviceModelNumber.Find("vive", ESearchCase::IgnoreCase) != INDEX_NONE)
 			{
 				DeviceType = EBPOpenVRHMDDeviceType::DT_Vive;
@@ -101,7 +104,19 @@ EBPOpenVRHMDDeviceType UOpenVRExpansionFunctionLibrary::GetOpenVRHMDType()
 			}	
 			else
 			{
-				DeviceType = EBPOpenVRHMDDeviceType::DT_Unknown;
+				// Check for manufacturer name for windows MR
+				UOpenVRExpansionFunctionLibrary::GetVRDevicePropertyString(EVRDeviceProperty_String::Prop_ManufacturerName_String_1005, 0, DeviceModelNumber, Result);
+				if (Result == EBPOVRResultSwitch::OnSucceeded)
+				{
+					if (DeviceModelNumber.Find("WindowsMR", ESearchCase::IgnoreCase) != INDEX_NONE)
+					{
+						DeviceType = EBPOpenVRHMDDeviceType::DT_WindowsMR;
+					}
+				}
+				else
+				{
+					DeviceType = EBPOpenVRHMDDeviceType::DT_Unknown;
+				}
 			}
 		}
 	}
@@ -437,7 +452,7 @@ void UOpenVRExpansionFunctionLibrary::GetVRDevicePropertyString(EVRDevicePropert
 	}
 
 	char charvalue[vr::k_unMaxPropertyStringSize];
-	uint32_t buffersize = 255;
+	uint32_t buffersize = vr::k_unMaxPropertyStringSize;
 	uint32_t ret = VRSystem->GetStringTrackedDeviceProperty(DeviceID, EnumPropertyValue, charvalue, buffersize, &pError);
 
 	if (pError != vr::TrackedPropertyError::TrackedProp_Success)
@@ -840,7 +855,7 @@ UTexture2D * UOpenVRExpansionFunctionLibrary::GetVRDeviceModelAndTexture(UObject
 	vr::TrackedPropertyError pError = vr::TrackedPropertyError::TrackedProp_Success;
 
 	char RenderModelName[vr::k_unMaxPropertyStringSize];
-	uint32_t buffersize = 255;
+	uint32_t buffersize = vr::k_unMaxPropertyStringSize;
 	uint32_t ret = VRSystem->GetStringTrackedDeviceProperty(DeviceID, vr::ETrackedDeviceProperty::Prop_RenderModelName_String, RenderModelName, buffersize, &pError);
 
 	if (pError != vr::TrackedPropertyError::TrackedProp_Success)

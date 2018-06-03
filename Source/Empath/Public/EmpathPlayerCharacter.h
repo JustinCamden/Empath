@@ -18,6 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPlayerCharacterStunnedDelegate
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerCharacterStunEndDelegate);
 
 class AEmpathPlayerController;
+class AEmpathHandActor;
 
 /**
 *
@@ -32,6 +33,9 @@ public:
 
 	// Override for tick
 	virtual void Tick(float DeltaTime) override;
+
+	// Overide for begin player
+	virtual void BeginPlay() override;
 
 	// Constructor to set default variables
 	AEmpathPlayerCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
@@ -247,6 +251,7 @@ public:
 	/** Checks whether we should become stunned */
 	virtual void TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser);
 
+
 private:
 	/** Whether this character is currently dead. */
 	bool bDead;
@@ -256,5 +261,24 @@ private:
 
 	/** The player controller for this VR character. */
 	AEmpathPlayerController* EmpathPlayerController;
+
+	// ---------------------------------------------------------
+	//	Hands
+
+	/** The right hand actor class of the character. */
+	UPROPERTY(Category = "Empath|Hand", EditDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<AEmpathHandActor> RightHandClass;
+
+	/** The right hand actor class of the character. */
+	UPROPERTY(Category = "Empath|Hand", EditDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<AEmpathHandActor> LeftHandClass;
+
+	/** Reference to the right hand actor. */
+	UPROPERTY(Category = "Empath|Hand", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	AEmpathHandActor* RightHandReference;
+
+	/** Reference to the left hand actor. */
+	UPROPERTY(Category = "Empath|Hand", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	AEmpathHandActor* LeftHandReference;
 
 };

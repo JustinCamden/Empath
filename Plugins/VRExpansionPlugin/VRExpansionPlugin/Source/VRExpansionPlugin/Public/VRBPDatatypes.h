@@ -576,6 +576,21 @@ enum class EPhysicsGripConstraintType : uint8
 	ForceConstraint = 1
 };
 
+UENUM(Blueprintable)
+enum class EPhysicsGripCOMType : uint8
+{
+	/* Use the default setting for the specified grip type */
+	COM_Default = 0,
+	/* Don't grip at center of mass (generally unstable as it grips at actor zero)*/
+	COM_AtPivot = 1,
+	/* Set center of mass to grip location and grip there (default for interactible with physics) */
+	COM_SetAndGripAt = 2,
+	/* Grip at center of mass but do not set it */
+	COM_GripAt = 3,
+	/* Just grip at the controller location, but don't set COM (default for manipulation grips)*/
+	COM_GripAtControllerLoc = 4
+};
+
 USTRUCT(BlueprintType, Category = "VRExpansionLibrary")
 struct VREXPANSIONPLUGIN_API FBPAdvGripPhysicsSettings
 {
@@ -588,9 +603,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PhysicsSettings", meta = (editcondition = "bUsePhysicsSettings"))
 		EPhysicsGripConstraintType PhysicsConstraintType;
 
-	// Do not set the Center Of Mass to the grip location, use this if the default is buggy or you want a custom COM
+	// Set how the grips handle center of mass
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PhysicsSettings", meta = (editcondition = "bUsePhysicsSettings"))
-		bool bDoNotSetCOMToGripLocation;
+		EPhysicsGripCOMType PhysicsGripLocationSettings;
 
 	// Turn off gravity during the grip, resolves the slight downward offset of the object with normal constraint strengths.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PhysicsSettings", meta = (editcondition = "bUsePhysicsSettings"))
@@ -609,7 +624,7 @@ public:
 	FBPAdvGripPhysicsSettings():
 		bUsePhysicsSettings(false),
 		PhysicsConstraintType(EPhysicsGripConstraintType::AccelerationConstraint),
-		bDoNotSetCOMToGripLocation(false),
+		PhysicsGripLocationSettings(EPhysicsGripCOMType::COM_Default),
 		bTurnOffGravityDuringGrip(false),
 		bUseCustomAngularValues(false),
 		AngularStiffness(0.0f),
@@ -619,7 +634,7 @@ public:
 	FORCEINLINE bool operator==(const FBPAdvGripPhysicsSettings &Other) const
 	{
 		return (bUsePhysicsSettings == Other.bUsePhysicsSettings &&
-			bDoNotSetCOMToGripLocation == Other.bDoNotSetCOMToGripLocation &&
+			PhysicsGripLocationSettings == Other.PhysicsGripLocationSettings &&
 			bTurnOffGravityDuringGrip == Other.bTurnOffGravityDuringGrip &&
 			bUseCustomAngularValues == Other.bUseCustomAngularValues &&
 			FMath::IsNearlyEqual(AngularStiffness, Other.AngularStiffness) &&
@@ -630,7 +645,7 @@ public:
 	FORCEINLINE bool operator!=(const FBPAdvGripPhysicsSettings &Other) const
 	{
 		return (bUsePhysicsSettings != Other.bUsePhysicsSettings ||
-			bDoNotSetCOMToGripLocation != Other.bDoNotSetCOMToGripLocation ||
+			PhysicsGripLocationSettings != Other.PhysicsGripLocationSettings ||
 			bTurnOffGravityDuringGrip != Other.bTurnOffGravityDuringGrip ||
 			bUseCustomAngularValues != Other.bUseCustomAngularValues ||
 			!FMath::IsNearlyEqual(AngularStiffness, Other.AngularStiffness) ||
@@ -647,7 +662,7 @@ public:
 		if (bUsePhysicsSettings)
 		{
 			//Ar << bDoNotSetCOMToGripLocation;
-			Ar.SerializeBits(&bDoNotSetCOMToGripLocation, 1);
+			Ar.SerializeBits(&PhysicsGripLocationSettings, 3); // This only has four elements
 			
 			//Ar << PhysicsConstraintType;
 			Ar.SerializeBits(&PhysicsConstraintType, 1); // This only has two elements
@@ -723,6 +738,11 @@ public:
 
 	// Used to smooth filter the secondary influence
 	FBPEuroLowPassFilter SmoothingOneEuro;
+
+	void ClearNonReppedItems()
+	{
+		SmoothingOneEuro.ResetSmoothingFilter();
+	}
 
 	FBPAdvSecondaryGripSettings() :
 		bUseSecondaryGripSettings(false),
@@ -830,6 +850,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AdvancedGripSettings")
 		uint8 GripPriority;
 
+	// If true, will set the owner of actor grips on grip
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AdvancedGripSettings")
+		bool bSetOwnerOnGrip;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AdvancedGripSettings")
 		FBPAdvGripPhysicsSettings PhysicsSettings;
 
@@ -838,11 +862,13 @@ public:
 
 
 	FBPAdvGripSettings() :
-		GripPriority(1)
+		GripPriority(1),
+		bSetOwnerOnGrip(1)
 	{}
 
 	FBPAdvGripSettings(int GripPrio) :
-		GripPriority(GripPrio)
+		GripPriority(GripPrio),
+		bSetOwnerOnGrip(1)
 	{}
 };
 
@@ -860,7 +886,7 @@ public:
 		USceneComponent * SecondaryAttachment;
 
 	UPROPERTY()
-		FVector_NetQuantize100 SecondaryRelativeLocation;
+		FTransform_NetQuantize SecondaryRelativeTransform;
 
 	UPROPERTY(BlueprintReadWrite, Category = "SecondaryGripInfo")
 		bool bIsSlotGrip;
@@ -881,10 +907,17 @@ public:
 	// Store values for frame by frame changes of secondary grips
 	FVector LastRelativeLocation;
 
+	void ClearNonReppingItems()
+	{
+		SecondaryGripDistance = 0.0f;
+		GripLerpState = EGripLerpState::NotLerping;
+		curLerp = 0.0f;
+	}
+
 	FBPSecondaryGripInfo():
 		bHasSecondaryAttachment(false),
 		SecondaryAttachment(nullptr),
-		SecondaryRelativeLocation(FVector::ZeroVector),
+		SecondaryRelativeTransform(FTransform::Identity),
 		bIsSlotGrip(false),
 		LerpToRate(0.0f),
 		SecondaryGripDistance(0.0f),
@@ -902,7 +935,7 @@ public:
 		
 		if (bHasSecondaryAttachment)
 		{
-			this->SecondaryRelativeLocation = Other.SecondaryRelativeLocation;
+			this->SecondaryRelativeTransform = Other.SecondaryRelativeTransform;
 			this->bIsSlotGrip = Other.bIsSlotGrip;
 		}
 
@@ -922,7 +955,7 @@ public:
 		{
 			Ar << SecondaryAttachment;
 			//Ar << SecondaryRelativeLocation;
-			SecondaryRelativeLocation.NetSerialize(Ar, Map, bOutSuccess);
+			SecondaryRelativeTransform.NetSerialize(Ar, Map, bOutSuccess);
 
 			//Ar << bIsSlotGrip;
 			Ar.SerializeBits(&bIsSlotGrip, 1);
@@ -1101,26 +1134,45 @@ public:
 	{
 		bool bWasInitiallyRepped;
 		bool bCachedHasSecondaryAttachment;
-		FVector CachedSecondaryRelativeLocation;
+		FTransform_NetQuantize CachedSecondaryRelativeTransform;
 		EGripCollisionType CachedGripCollisionType;
 		EGripMovementReplicationSettings CachedGripMovementReplicationSetting;
 		float CachedStiffness;
 		float CachedDamping;
 		FBPAdvGripPhysicsSettings CachedPhysicsSettings;
 		FName CachedBoneName;
+		uint8 CachedGripID;
 
-		FGripValueCache():
+		FGripValueCache() :
 			bWasInitiallyRepped(false),
 			bCachedHasSecondaryAttachment(false),
-			CachedSecondaryRelativeLocation(FVector::ZeroVector),
+			CachedSecondaryRelativeTransform(FTransform::Identity),
 			CachedGripCollisionType(EGripCollisionType::InteractiveCollisionWithSweep),
 			CachedGripMovementReplicationSetting(EGripMovementReplicationSettings::ForceClientSideMovement),
 			CachedStiffness(1500.0f),
 			CachedDamping(200.0f),
-			CachedBoneName(NAME_None)
+			CachedBoneName(NAME_None),
+			CachedGripID(0)
 		{}
 
 	}ValueCache;
+
+	void ClearNonReppingItems()
+	{
+		ValueCache = FGripValueCache();
+		bColliding = false;
+		bIsLocked = false;
+		LastLockedRotation = FQuat::Identity;
+		bSkipNextConstraintLengthCheck = false;
+		bIsPaused = false;
+		AdditionTransform = FTransform::Identity;
+		GripDistance = 0.0f;
+
+		// Clear out the secondary grip
+		SecondaryGripInfo.ClearNonReppingItems();
+
+		AdvancedGripSettings.SecondaryGripSettings.ClearNonReppedItems();
+	}
 
 	// Adding this override to keep un-repped variables from repping over from Client Auth grips
 	FORCEINLINE FBPActorGripInformation& RepCopy(const FBPActorGripInformation& Other)
@@ -1230,7 +1282,7 @@ struct VREXPANSIONPLUGIN_API FBPInterfaceProperties
 {
 	GENERATED_BODY()
 public:
-
+		
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VRGripInterface")
 		bool bDenyGripping;
 
@@ -1285,10 +1337,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VRGripInterface")
 		bool bIsInteractible;
 
-	UPROPERTY(BlueprintReadWrite, NotReplicated, Category = "VRGripInterface")
+	UPROPERTY(BlueprintReadOnly, NotReplicated, Category = "VRGripInterface")
 		bool bIsHeld; // Set on grip notify, not net serializing
 
-	UPROPERTY(BlueprintReadWrite, NotReplicated, Category = "VRGripInterface")
+	UPROPERTY(BlueprintReadOnly, NotReplicated, Category = "VRGripInterface")
 		UGripMotionControllerComponent * HoldingController; // Set on grip notify, not net serializing
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VRGripInterface", meta = (editcondition = "bIsInteractible"))
@@ -1323,6 +1375,7 @@ struct VREXPANSIONPLUGIN_API FBPActorPhysicsHandleInformation
 public:
 	UPROPERTY(BlueprintReadOnly, Category = "Settings")
 		UObject * HandledObject;
+	uint8 GripID;
 
 	/** Physics scene index of the body we are grabbing. */
 	int32 SceneIndex;
@@ -1334,6 +1387,8 @@ public:
 	physx::PxTransform COMPosition;
 	FTransform RootBoneRotation;
 
+	bool bSetCOM;
+
 	FBPActorPhysicsHandleInformation()
 	{
 		HandleData = NULL;
@@ -1341,16 +1396,15 @@ public:
 		HandledObject = nullptr;
 		//Actor = nullptr;
 		//Component = nullptr;
-		
+		COMPosition = U2PTransform(FTransform::Identity);
+		GripID = 0;
 		RootBoneRotation = FTransform::Identity;
+		bSetCOM = false;
 	}
 
 	FORCEINLINE bool operator==(const FBPActorGripInformation & Other) const
 	{
-		if (HandledObject && HandledObject == Other.GrippedObject)
-			return true;
-
-		return false;
+		return (GripID == Other.GripID);
 	}
 
 };

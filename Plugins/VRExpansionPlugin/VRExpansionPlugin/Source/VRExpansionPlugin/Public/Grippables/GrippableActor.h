@@ -8,18 +8,18 @@
 #include "VRExpansionFunctionLibrary.h"
 #include "GameplayTagContainer.h"
 #include "GameplayTagAssetInterface.h"
-#include "GrippableBoxComponent.generated.h"
+#include "GrippableActor.generated.h"
+
 
 /**
 *
 */
-
 UCLASS(Blueprintable, meta = (BlueprintSpawnableComponent), ClassGroup = (VRExpansionPlugin))
-class VREXPANSIONPLUGIN_API UGrippableBoxComponent : public UBoxComponent, public IVRGripInterface, public IGameplayTagAssetInterface
+class VREXPANSIONPLUGIN_API AGrippableActor : public AActor, public IVRGripInterface, public IGameplayTagAssetInterface
 {
 	GENERATED_UCLASS_BODY()
 
-	~UGrippableBoxComponent();
+	~AGrippableActor();
 
 	// ------------------------------------------------
 	// Gameplay tag interface
@@ -39,18 +39,81 @@ class VREXPANSIONPLUGIN_API UGrippableBoxComponent : public UBoxComponent, publi
 
 	virtual void PreReplication(IRepChangedPropertyTracker & ChangedPropertyTracker) override;
 
+	// Skips the attachment replication if we are locally owned and our grip settings say that we are a client authed grip.
+	UPROPERTY(EditAnywhere, Replicated, BlueprintReadWrite, Category = "Replication")
+		bool bAllowIgnoringAttachOnOwner;
 
+	// Should we skip attachment replication (vr settings say we are a client auth grip and our owner is locally controlled)
+	inline bool ShouldWeSkipAttachmentReplication() const
+	{
+		if (VRGripInterfaceSettings.MovementReplicationType == EGripMovementReplicationSettings::ClientSide_Authoritive ||
+			VRGripInterfaceSettings.MovementReplicationType == EGripMovementReplicationSettings::ClientSide_Authoritive_NoRep)
+		{
+			const AActor* MyOwner = GetOwner();
+			const APawn* MyPawn = Cast<APawn>(MyOwner);
+			return (MyPawn ? MyPawn->IsLocallyControlled() : (MyOwner && MyOwner->Role == ENetRole::ROLE_Authority));
+		}
+		else
+			return false;
+	}
 
-	// Requires bReplicates to be true for the component
-	UPROPERTY(EditAnywhere, Replicated, BlueprintReadWrite, Category = "VRGripInterface|Replication")
-	bool bRepGripSettingsAndGameplayTags;
+	virtual void OnRep_AttachmentReplication() override
+	{
+		if (bAllowIgnoringAttachOnOwner && ShouldWeSkipAttachmentReplication())
+		{
+			return;
+		}
 
-	// Overrides the default of : true and allows for controlling it like in an actor, should be default of off normally with grippable components
-	UPROPERTY(EditAnywhere, Replicated, BlueprintReadWrite, Category = "VRGripInterface|Replication")
-	bool bReplicateMovement;
+		// We don't want to skip the update, we aren't a local grip, now lets bypass some of the stupid stuff
+
+		const FRepAttachment ReplicationAttachment = GetAttachmentReplication();
+		if (!ReplicationAttachment.AttachParent)
+		{
+			DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+			// Handle the case where an object was both detached and moved on the server in the same frame.
+			// Calling this extraneously does not hurt but will properly fire events if the movement state changed while attached.
+			// This is needed because client side movement is ignored when attached #TODO: Should I just delete this in the future?
+			if (bReplicateMovement)
+				OnRep_ReplicatedMovement();
+
+			return;
+		}
+
+		// None of our overrides are required, lets just pass it on now
+		Super::OnRep_AttachmentReplication();
+	}
+
+	virtual void OnRep_ReplicateMovement() override
+	{
+		if (bAllowIgnoringAttachOnOwner && ShouldWeSkipAttachmentReplication())
+		{
+			return;
+		}
+
+		if (RootComponent)
+		{
+			// This "fix" corrects the simulation state not replicating over correctly
+			// If you turn off movement replication, simulate an object, turn movement replication back on and un-simulate, it never knows the difference
+			// This change ensures that it is checking against the current state
+			if (RootComponent->IsSimulatingPhysics() != ReplicatedMovement.bRepPhysics)//SavedbRepPhysics != ReplicatedMovement.bRepPhysics)
+			{
+				// Turn on/off physics sim to match server.
+				SyncReplicatedPhysicsSimulation();
+
+				// It doesn't really hurt to run it here, the super can call it again but it will fail out as they already match
+			}
+
+		}
+
+		Super::OnRep_ReplicateMovement();
+	}
 
 	UPROPERTY(EditAnywhere, Replicated, BlueprintReadWrite, Category = "VRGripInterface")
-	FBPInterfaceProperties VRGripInterfaceSettings;
+		bool bRepGripSettingsAndGameplayTags;
+
+	UPROPERTY(EditAnywhere, Replicated, BlueprintReadWrite, Category = "VRGripInterface")
+		FBPInterfaceProperties VRGripInterfaceSettings;
 
 	// Set up as deny instead of allow so that default allows for gripping
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "VRGripInterface", meta = (DisplayName = "IsDenyingGrips"))
@@ -84,6 +147,7 @@ class VREXPANSIONPLUGIN_API UGrippableBoxComponent : public UBoxComponent, publi
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "VRGripInterface")
 		void GetGripStiffnessAndDamping(float &GripStiffnessOut, float &GripDampingOut);
 
+
 	// Get the advanced physics settings for this grip
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "VRGripInterface")
 		FBPAdvGripSettings AdvancedGripSettings();
@@ -95,6 +159,7 @@ class VREXPANSIONPLUGIN_API UGrippableBoxComponent : public UBoxComponent, publi
 		// Get closest primary slot in range
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "VRGripInterface")
 		void ClosestGripSlotInRange(FVector WorldLocation, bool bSecondarySlot, bool & bHadSlotInRange, FTransform & SlotWorldTransform, UGripMotionControllerComponent * CallingController = nullptr, FName OverridePrefix = NAME_None);
+
 
 	// Check if the object is an interactable
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "VRGripInterface")
@@ -115,7 +180,6 @@ class VREXPANSIONPLUGIN_API UGrippableBoxComponent : public UBoxComponent, publi
 	// Get interactable settings
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "VRGripInterface")
 		FBPInteractionSettings GetInteractionSettings();
-
 
 	// Events //
 
@@ -168,5 +232,4 @@ class VREXPANSIONPLUGIN_API UGrippableBoxComponent : public UBoxComponent, publi
 	// Call to send an action event to the object
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "VRGripInterface")
 		void OnInput(FKey Key, EInputEvent KeyEvent);
-
 };

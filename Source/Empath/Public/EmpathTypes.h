@@ -39,11 +39,12 @@ struct FEmpathBBKeys
 	static const FName NavRecoverySearchOuterRadius;
 };
 
-struct FEmpathCollisionrProfiles
+struct FEmpathCollisionProfiles
 {
 	static const FName Ragdoll;
 	static const FName PawnIgnoreAll;
 	static const FName DamageCollision;
+	static const FName HandCollision;
 };
 
 USTRUCT(BlueprintType)

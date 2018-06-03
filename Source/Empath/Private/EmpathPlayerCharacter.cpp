@@ -4,6 +4,7 @@
 #include "EmpathPlayerController.h"
 #include "EmpathDamageType.h"
 #include "EmpathFunctionLibrary.h"
+#include "EmpathHandActor.h"
 
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("Empath VR Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_VRCharacter);
@@ -31,6 +32,57 @@ AEmpathPlayerCharacter::AEmpathPlayerCharacter(const FObjectInitializer& ObjectI
 	DamageCapsule->SetCapsuleHalfHeight(30.0f);
 	DamageCapsule->SetCapsuleRadius(8.5f);
 	DamageCapsule->SetRelativeLocation(FVector(1.75f, 0.0f, -18.5f));
+	DamageCapsule->SetCollisionProfileName(FEmpathCollisionProfiles::DamageCollision);
+
+	// Set default hand type
+	RightHandClass = AEmpathHandActor::StaticClass();
+	LeftHandClass = AEmpathHandActor::StaticClass();
+}
+
+void AEmpathPlayerCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Spawn and attach hands if their classes are set
+	// Variables
+	FTransform SpawnTransform;
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	FAttachmentTransformRules SpawnAttachRules(EAttachmentRule::SnapToTarget,
+		EAttachmentRule::SnapToTarget,
+		EAttachmentRule::SnapToTarget,
+		false);
+
+	// Right hand
+	if (RightHandClass)
+	{
+		SpawnTransform = RightMotionController->GetComponentTransform();
+
+		RightHandReference = GetWorld()->SpawnActor<AEmpathHandActor>(RightHandClass, SpawnTransform, SpawnParams);
+		RightHandReference->AttachToComponent(RootComponent, SpawnAttachRules);
+	}
+
+	// Left hand
+	if (LeftHandClass)
+	{
+		SpawnTransform = RightMotionController->GetComponentTransform();
+
+		LeftHandReference = GetWorld()->SpawnActor<AEmpathHandActor>(LeftHandClass, SpawnTransform, SpawnParams);
+		LeftHandReference->AttachToComponent(RootComponent, SpawnAttachRules);
+	}
+
+	// Register hands
+	if (RightHandReference)
+	{
+		RightHandReference->RegisterHand(LeftHandReference, this, LeftMotionController);
+	}
+	if (LeftHandReference)
+	{
+		LeftHandReference->RegisterHand(RightHandReference, this, RightMotionController);
+	}
+
 }
 
 void AEmpathPlayerCharacter::Tick(float DeltaTime)

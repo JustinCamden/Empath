@@ -17,6 +17,7 @@ const FName FEmpathBBKeys::NavRecoveryDestination(TEXT("NavRecoveryDestination")
 const FName FEmpathBBKeys::NavRecoverySearchInnerRadius(TEXT("NavRecoverySearchInnerRadius"));
 const FName FEmpathBBKeys::NavRecoverySearchOuterRadius(TEXT("NavRecoverySearchOuterRadius"));
 
-const FName FEmpathCollisionrProfiles::Ragdoll(TEXT("Ragdoll"));
-const FName FEmpathCollisionrProfiles::PawnIgnoreAll(TEXT("PawnIgnoreAll"));
-const FName FEmpathCollisionrProfiles::DamageCollision(TEXT("DamageCollision"));
+const FName FEmpathCollisionProfiles::Ragdoll(TEXT("Ragdoll"));
+const FName FEmpathCollisionProfiles::PawnIgnoreAll(TEXT("PawnIgnoreAll"));
+const FName FEmpathCollisionProfiles::DamageCollision(TEXT("DamageCollision"));
+const FName FEmpathCollisionProfiles::HandCollision(TEXT("HandCollision"));

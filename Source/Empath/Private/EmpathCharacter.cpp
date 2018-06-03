@@ -773,12 +773,12 @@ void AEmpathCharacter::StartRagdoll()
 		{
 			// Update physics state
 			SetCharacterPhysicsState(EEmpathCharacterPhysicsState::FullRagdoll);
-			MyMesh->SetCollisionProfileName(FEmpathCollisionrProfiles::Ragdoll);
+			MyMesh->SetCollisionProfileName(FEmpathCollisionProfiles::Ragdoll);
 
 			// We set the capsule to ignore all interactions rather than turning off collision completely, 
 			// since there's a good chance we will get back up,
 			//and the physics state would have to be recreated again.
-			GetCapsuleComponent()->SetCollisionProfileName(FEmpathCollisionrProfiles::PawnIgnoreAll);
+			GetCapsuleComponent()->SetCollisionProfileName(FEmpathCollisionProfiles::PawnIgnoreAll);
 			bRagdolling = true;
 
 			// If we're not dead, start timer for getting back up
