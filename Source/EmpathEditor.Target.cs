@@ -9,6 +9,6 @@ public class EmpathEditorTarget : TargetRules
 	{
 		Type = TargetType.Editor;
 
-		ExtraModuleNames.AddRange( new string[] { "Empath" } );
+		ExtraModuleNames.AddRange( new string[] { "Empath", "EmpathTools" } );
 	}
 }

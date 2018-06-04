@@ -3,19 +3,31 @@
 	"EngineAssociation": "4.19",
 	"Category": "",
 	"Description": "",
-	"Modules": [
-		{
-			"Name": "Empath",
-			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"AdditionalDependencies": [
-				"VRExpansionPlugin",
-				"Engine",
-				"CoreUObject",
-				"AIModule"
-			]
-		}
-	],
+  "Modules": [
+    {
+      "Name": "Empath",
+      "Type": "Runtime",
+      "LoadingPhase": "Default",
+      "AdditionalDependencies": [
+        "VRExpansionPlugin",
+        "Engine",
+        "CoreUObject",
+        "AIModule"
+      ]
+    },
+    {
+      "Name": "EmpathTools",
+      "Type": "Editor",
+      "LoadingPhase": "PostEngineInit",
+      "AdditionalDependencies": [
+        "VRExpansionPlugin",
+        "Engine",
+        "CoreUObject",
+        "AIModule",
+        "Empath"
+      ]
+    }
+  ],
 	"Plugins": [
 		{
 			"Name": "PrefabTool",

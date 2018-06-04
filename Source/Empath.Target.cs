@@ -10,5 +10,6 @@ public class EmpathTarget : TargetRules
 		Type = TargetType.Game;
 
 		ExtraModuleNames.AddRange( new string[] { "Empath" } );
-	}
+    }
+
 }
