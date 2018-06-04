@@ -13,7 +13,7 @@ public class Linter : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 #if UE_4_17_OR_LATER
-        Definitions.Add("SUPPORTS_GENERATING_NODE_IMAGES=1");
+        PublicDefinitions.Add("SUPPORTS_GENERATING_NODE_IMAGES=1");
 #else
         Definitions.Add("SUPPORTS_GENERATING_NODE_IMAGES=0");
 #endif
