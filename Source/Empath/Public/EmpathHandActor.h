@@ -8,7 +8,6 @@
 
 class USphereComponent;
 class AEmpathPlayerCharacter;
-class UEmpathKinematicVelocityComponent;
 
 UCLASS()
 class EMPATH_API AEmpathHandActor : public AActor
@@ -17,16 +16,13 @@ class EMPATH_API AEmpathHandActor : public AActor
 	
 public:	
 	// Sets default values for this actor's properties
-	AEmpathHandActor(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	AEmpathHandActor();
 
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 	/** Name of the Sphere Component. */
 	static FName SphereComponentName;
-
-	/** Name of the Kinematic Velocity component. */
-	static FName KinematicVelocityComponentName;
 
 	/** Call to register this hand with the other hand and the owning player character. */
 	void RegisterHand(AEmpathHandActor* InOtherHand, 
@@ -58,7 +54,4 @@ private:
 	UPROPERTY(Category = "Empath|Hand", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	USceneComponent* FollowedComponent;
 	
-	/** The Sphere component used for collision. */
-	UPROPERTY(Category = "Empath|Hand", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	UEmpathKinematicVelocityComponent* KinematicVelocityComponent;
 };

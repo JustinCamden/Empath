@@ -3,30 +3,18 @@
 #include "EmpathHandActor.h"
 #include "Components/SphereComponent.h"
 #include "EmpathTypes.h"
-#include "EmpathKinematicVelocityComponent.h"
 
 FName AEmpathHandActor::SphereComponentName(TEXT("SphereComponent0"));
-FName AEmpathHandActor::KinematicVelocityComponentName(TEXT("KinematicVelocityComponent"));
 
 // Sets default values
-AEmpathHandActor::AEmpathHandActor(const FObjectInitializer& ObjectInitializer)
+AEmpathHandActor::AEmpathHandActor()
 {
-	// Enable tick
+ 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
-	// Initialize sphere collision component
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(SphereComponentName);
 	SphereComponent->InitSphereRadius(7.75f);
 	SphereComponent->SetCollisionProfileName(FEmpathCollisionProfiles::HandCollision);
 	RootComponent = SphereComponent;
-
-	// Initialize kinematic velocity component
-	KinematicVelocityComponent = CreateDefaultSubobject<UEmpathKinematicVelocityComponent>(KinematicVelocityComponentName);
-	KinematicVelocityComponent->SetupAttachment(RootComponent);
-
-	// By default, we assume the right hand for positioning.
-	// To change it to the left hand, invert the Y
-	KinematicVelocityComponent->SetRelativeLocation(FVector(-6.5f, 1.0f, -2.0f));
 
 }
 
