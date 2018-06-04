@@ -8,6 +8,7 @@
 
 class USphereComponent;
 class AEmpathPlayerCharacter;
+class UEmpathKinematicVelocityComponent;
 
 UCLASS()
 class EMPATH_API AEmpathHandActor : public AActor
@@ -16,13 +17,19 @@ class EMPATH_API AEmpathHandActor : public AActor
 	
 public:	
 	// Sets default values for this actor's properties
-	AEmpathHandActor();
+	AEmpathHandActor(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 	/** Name of the Sphere Component. */
 	static FName SphereComponentName;
+
+	/** Name of the Kinematic Velocity Component. */
+	static FName KinematicVelocityComponentName;
+
+	/** Name of the mesh component. */
+	static FName MeshComponentName;
 
 	/** Call to register this hand with the other hand and the owning player character. */
 	void RegisterHand(AEmpathHandActor* InOtherHand, 
@@ -34,13 +41,25 @@ protected:
 	virtual void BeginPlay() override;
 
 	/** Called after being registered with the owning player character and the other hand. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Hand")
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Hand")
 	void OnHandRegistered();
+
+	/** Called to activate spellcasting on this hand. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Hand")
+	void ActivateCasting();
+
+	/** Called to deactivate spellcasting on this hand. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Hand")
+	void DectivateCasting();
 
 private:
 	/** The Sphere component used for collision. */
 	UPROPERTY(Category = "Empath|Hand", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	USphereComponent* SphereComponent;
+
+	/** The kinematic velocity component used for movement detection. */
+	UPROPERTY(Category = "Empath|Hand", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UEmpathKinematicVelocityComponent* KinematicVelocityComponent;
 	
 	/** Reference to the other hand actor. */
 	UPROPERTY(Category = "Empath|Hand", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -53,5 +72,9 @@ private:
 	/** Reference to the scene component we are following. */
 	UPROPERTY(Category = "Empath|Hand", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	USceneComponent* FollowedComponent;
+
+	/** The main skeletal mesh associated with this hand. */
+	UPROPERTY(Category = "Empath|Hand", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	USkeletalMeshComponent* MeshComponent;
 	
 };
