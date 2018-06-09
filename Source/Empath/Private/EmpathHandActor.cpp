@@ -14,8 +14,11 @@ FName AEmpathHandActor::MeshComponentName(TEXT("MeshComponent"));
 AEmpathHandActor::AEmpathHandActor(const FObjectInitializer& ObjectInitializer)
 	:Super(ObjectInitializer)
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+ 	// Set this actor to call Tick() every frame.
 	PrimaryActorTick.bCanEverTick = true;
+
+	// Initial variables
+	FollowComponentLostThreshold = 10.0f;
 
 	// Initialize components
 	// Root component
@@ -34,6 +37,7 @@ AEmpathHandActor::AEmpathHandActor(const FObjectInitializer& ObjectInitializer)
 	// Mesh component
 	MeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(MeshComponentName);
 	MeshComponent->SetupAttachment(RootComponent);
+
 }
 
 // Called when the game starts or when spawned
@@ -45,11 +49,12 @@ void AEmpathHandActor::BeginPlay()
 // Called every frame
 void AEmpathHandActor::Tick(float DeltaTime)
 {
+	// Call the parent function
 	Super::Tick(DeltaTime);
-	if (FollowedComponent)
-	{
-		SetActorTransform(FollowedComponent->GetComponentTransform(), true);
-	}
+
+	// Update our position to follow the component
+	MoveToFollowComponent();
+
 }
 
 void AEmpathHandActor::RegisterHand(AEmpathHandActor* InOtherHand, 
@@ -62,11 +67,6 @@ void AEmpathHandActor::RegisterHand(AEmpathHandActor* InOtherHand,
 	OnHandRegistered();
 }
 
-void AEmpathHandActor::OnHandRegistered_Implementation()
-{
-	ActivateCasting();
-}
-
 void AEmpathHandActor::ActivateCasting_Implementation()
 {
 	KinematicVelocityComponent->Activate(false);
@@ -77,3 +77,64 @@ void AEmpathHandActor::DectivateCasting_Implementation()
 	KinematicVelocityComponent->Deactivate();
 }
 
+void AEmpathHandActor::MoveToFollowComponent()
+{
+	if (FollowedComponent)
+	{
+		// Check the distance from the follow component
+		SetActorTransform(FollowedComponent->GetComponentTransform(), true);
+		float CurrentFollowDistance = (FollowedComponent->GetComponentTransform().GetLocation() - GetTransform().GetLocation()).Size();
+		if (CurrentFollowDistance >= FollowComponentLostThreshold)
+		{
+			UpdateLostFollowComponent(true);
+		}
+		else
+		{
+			UpdateLostFollowComponent(false);
+		}
+	}
+	else
+	{
+		// If we don't have a follow component, we've lost it
+		UpdateLostFollowComponent(true);
+	}
+}
+
+void AEmpathHandActor::UpdateLostFollowComponent(bool bLost)
+{
+	// Only process this function is there a change in result
+	if (bLost != bLostFollowComponent)
+	{
+		// Update variable before firing notifies
+		if (bLost)
+		{
+			bLostFollowComponent = true;
+			OnLostFollowComponent();
+		}
+		else
+		{
+			bLostFollowComponent = false;
+			OnFoundFollowComponent();
+		}
+	}
+}
+
+void AEmpathHandActor::OnLostFollowComponent_Implementation()
+{
+	DectivateCasting();
+}
+
+void AEmpathHandActor::OnFoundFollowComponent_Implementation()
+{
+	ActivateCasting();
+}
+
+FVector AEmpathHandActor::GetTeleportOrigin_Implementation() const
+{
+	return GetActorLocation();
+}
+
+FVector AEmpathHandActor::GetTeleportDirection_Implementation(FVector LocalDirection) const
+{
+	return GetTransform().TransformVectorNoScale(LocalDirection.GetSafeNormal());
+}

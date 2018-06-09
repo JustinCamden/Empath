@@ -21,6 +21,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterStunEndDelegate);
 class AEmpathAIController;
 class UDamageType;
 class UPhysicalAnimationComponent;
+class ANavigationData;
 
 UCLASS()
 class EMPATH_API AEmpathCharacter : public ACharacter, public IEmpathTeamAgentInterface
@@ -205,7 +206,7 @@ public:
 	float LastStunTime;
 
 	/** History of stun damage that has been applied to this character. */
-	TArray<FDamageHistoryEvent, TInlineAllocator<16>> StunDamageHistory;
+	TArray<FEmpathDamageHistoryEvent, TInlineAllocator<16>> StunDamageHistory;
 
 	/** Checks whether we should become stunned */
 	virtual void TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser);
@@ -254,7 +255,7 @@ public:
 
 	/** Allows us to define weak and strong spots on the character by inflicting different amounts of damage depending on the bone that was hit. */
 	UPROPERTY(EditDefaultsOnly, Category = "Empath|Health")
-	TArray<FPerBoneDamageScale> PerBoneDamage;
+	TArray<FEmpathPerBoneDamageScale> PerBoneDamage;
 
 	/** Allows us to define weak and strong spots on the character by inflicting different amounts of damage depending on the bone that was hit. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Health")
@@ -453,7 +454,7 @@ public:
 	/** Gets current settings based on whether we started on an island or not (if we support island recovery). */
 	const FEmpathNavRecoverySettings& GetCurrentNavRecoverySettings() const;
 
-	/** */
+	/** The maximum extent of our test for being on the navmesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Navigation")
 	FVector NavRecoveryTestExtent;
 
@@ -580,6 +581,38 @@ public:
 	/** Counter that is incremented each time we call TickNavMeshRecovery. Reset to 0 when recovery completes/starts.  */
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
 	int32 NavRecoveryCounter;
+
+
+	// ---------------------------------------------------------
+	//	Teleportation
+
+	/** Whether this actor can be teleported to. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	bool bCanBeTeleportedTo;
+
+	/** Gets the best teleport location for this actor. Returns false if there is no valid location or if teleporting to this actor is disabled. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Teleportation")
+	bool GetBestTeleportLocation(FHitResult TeleportHit, 
+		FVector TeleportOrigin, 
+		FVector& OutTeleportLocation, 
+		ANavigationData* NavData = nullptr, 
+		TSubclassOf<UNavigationQueryFilter> FilterClass = nullptr) const;
+
+	/** The extent of the teleport location query test for teleporting to this actor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	FVector TeleportQueryTestExtent;
+
+	/** The minimum distance from this actor for valid teleport-to positions. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	float TeleportPositionMinXYDistance;
+
+	/** Called when targeted for tracing teleport. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnTargetedForTeleport();
+
+	/** Called when un-targeted for tracing teleport. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnReleasedForTeleport();
 
 
 protected:

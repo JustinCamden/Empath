@@ -11,7 +11,7 @@
 DECLARE_STATS_GROUP(TEXT("EmpathAIManager"), STATGROUP_EMPATH_AIManager, STATCAT_Advanced);
 
 // Delegates
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNewPlayerAwarenessStateDelegate, EPlayerAwarenessState, NewAwarenessState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNewPlayerAwarenessStateDelegate, EEmpathPlayerAwarenessState, NewAwarenessState);
 
 // Forward declarations
 class AEmpathAIController;
@@ -106,7 +106,7 @@ protected:
 	/** Variables governing player awareness. */
 	bool bPlayerHasEverBeenSeen;
 	bool bIsPlayerLocationKnown;
-	EPlayerAwarenessState PlayerAwarenessState;
+	EEmpathPlayerAwarenessState PlayerAwarenessState;
 	FVector LastKnownPlayerLocation;
 	FTimerHandle LostPlayerTimerHandle;
 

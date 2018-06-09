@@ -27,7 +27,7 @@ AEmpathAIManager::AEmpathAIManager()
 	PrimaryActorTick.bCanEverTick = true;
 	
 	// Initialize default settings
-	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+	PlayerAwarenessState = EEmpathPlayerAwarenessState::PresenceNotKnown;
 	OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 	bPlayerHasEverBeenSeen = false;
 	bIsPlayerLocationKnown = false;
@@ -37,7 +37,7 @@ AEmpathAIManager::AEmpathAIManager()
 
 void AEmpathAIManager::OnPlayerDied(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType)
 {
-	PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+	PlayerAwarenessState = EEmpathPlayerAwarenessState::PresenceNotKnown;
 	OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 	bIsPlayerLocationKnown = false;
 }
@@ -172,7 +172,7 @@ void AEmpathAIManager::UpdateKnownTargetLocation(AActor const* Target)
 		LastKnownPlayerLocation = Player->GetVRLocation();
 
 		// Stop the "lost player" state flow
-		PlayerAwarenessState = EPlayerAwarenessState::KnownLocation;
+		PlayerAwarenessState = EEmpathPlayerAwarenessState::KnownLocation;
 		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 		GetWorldTimerManager().ClearTimer(LostPlayerTimerHandle);
 
@@ -219,14 +219,14 @@ bool AEmpathAIManager::IsTargetLocationKnown(AActor const* Target) const
 
 bool AEmpathAIManager::IsPlayerPotentiallyLost() const
 {
-	return PlayerAwarenessState == EPlayerAwarenessState::PotentiallyLost;
+	return PlayerAwarenessState == EEmpathPlayerAwarenessState::PotentiallyLost;
 }
 
 void AEmpathAIManager::OnPlayerTeleported(AActor* Player, FVector Origin, FVector Destination)
 {
-	if (PlayerAwarenessState == EPlayerAwarenessState::KnownLocation)
+	if (PlayerAwarenessState == EEmpathPlayerAwarenessState::KnownLocation)
 	{
-		PlayerAwarenessState = EPlayerAwarenessState::PotentiallyLost;
+		PlayerAwarenessState = EEmpathPlayerAwarenessState::PotentiallyLost;
 		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 
 		// If this timer expires and no AI has found the player, he is officially "lost"
@@ -240,13 +240,13 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 {
 	switch (PlayerAwarenessState)
 	{
-	case EPlayerAwarenessState::KnownLocation:
+	case EEmpathPlayerAwarenessState::KnownLocation:
 		// Shouldn't happen, do nothing.
 		break;
 
-	case EPlayerAwarenessState::PotentiallyLost:
+	case EEmpathPlayerAwarenessState::PotentiallyLost:
 		// Move on to lost state
-		PlayerAwarenessState = EPlayerAwarenessState::Lost;
+		PlayerAwarenessState = EEmpathPlayerAwarenessState::Lost;
 		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 		GetWorldTimerManager().SetTimer(LostPlayerTimerHandle,
 			FTimerDelegate::CreateUObject(this, &AEmpathAIManager::OnLostPlayerTimerExpired),
@@ -266,9 +266,9 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 
 		break;
 
-	case EPlayerAwarenessState::Lost:
+	case EEmpathPlayerAwarenessState::Lost:
 		// Start searching
-		PlayerAwarenessState = EPlayerAwarenessState::Searching;
+		PlayerAwarenessState = EEmpathPlayerAwarenessState::Searching;
 		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 
 		// Start searching
@@ -282,7 +282,7 @@ void AEmpathAIManager::OnLostPlayerTimerExpired()
 		}
 		break;
 
-	case EPlayerAwarenessState::Searching:
+	case EEmpathPlayerAwarenessState::Searching:
 	{
 		// Shouldn't happen, do nothing
 		break;
@@ -307,7 +307,7 @@ void AEmpathAIManager::CheckForAwareAIs()
 		}
 
 		// If not, we are no longer aware of the player
-		PlayerAwarenessState = EPlayerAwarenessState::PresenceNotKnown;
+		PlayerAwarenessState = EEmpathPlayerAwarenessState::PresenceNotKnown;
 		OnNewPlayerAwarenessState.Broadcast(PlayerAwarenessState);
 		bPlayerHasEverBeenSeen = false;
 		bIsPlayerLocationKnown = false;
@@ -322,7 +322,7 @@ void AEmpathAIManager::ReportNoise(AActor* NoiseInstigator, AActor* NoiseMaker, 
 
 	// Since secondary targets are currently always known,
 	// we only care about this if the instigator is the player, and we are not currently aware of them
-	if (PlayerAwarenessState == EPlayerAwarenessState::KnownLocation)
+	if (PlayerAwarenessState == EEmpathPlayerAwarenessState::KnownLocation)
 	{
 		return;
 	}

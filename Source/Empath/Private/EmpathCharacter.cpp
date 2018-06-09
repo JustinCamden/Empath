@@ -11,6 +11,7 @@
 #include "EmpathPathFollowingComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "AI/Navigation/NavigationData.h"
 
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("Empath Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
@@ -146,6 +147,10 @@ AEmpathCharacter::AEmpathCharacter(const FObjectInitializer& ObjectInitializer)
 	GetCharacterMovement()->bAlwaysCheckFloor = false;
 	ClimbingOffset = FVector(60.0f, 0.0f, 105.0f);
 	ClimbSpeed = 300.0f;
+
+	// Teleportation
+	TeleportQueryTestExtent = FVector(50.0f, 50.0f, 50.0f);
+	TeleportPositionMinXYDistance = 80.0f;
 }
 
 // Called when the game starts or when spawned
@@ -346,10 +351,10 @@ void AEmpathCharacter::CleanUpPostDeath_Implementation()
 EEmpathTeam AEmpathCharacter::GetTeamNum_Implementation() const
 {
 	// Defer to the controller
-	AController* const Controller = GetController();
-	if (Controller && Controller->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
+	AController* const MyController = GetController();
+	if (MyController && MyController->GetClass()->ImplementsInterface(UEmpathTeamAgentInterface::StaticClass()))
 	{
-		return IEmpathTeamAgentInterface::Execute_GetTeamNum(Controller);
+		return IEmpathTeamAgentInterface::Execute_GetTeamNum(MyController);
 	}
 
 	return DefaultTeam;
@@ -574,7 +579,7 @@ float AEmpathCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 float AEmpathCharacter::GetPerBoneDamageScale(FName BoneName) const
 {
 	// Check each per bone damage we've defined for this bone name
-	for (FPerBoneDamageScale const& CurrPerBoneDamage : PerBoneDamage)
+	for (FEmpathPerBoneDamageScale const& CurrPerBoneDamage : PerBoneDamage)
 	{
 		// If we find the bone name, return the damage scale
 		if (CurrPerBoneDamage.BoneNames.Contains(BoneName))
@@ -638,7 +643,7 @@ void AEmpathCharacter::ProcessFinalDamage_Implementation(const float DamageAmoun
 void AEmpathCharacter::TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Log stun event
-	StunDamageHistory.Add(FDamageHistoryEvent(StunDamageAmount,- GetWorld()->GetTimeSeconds()));
+	StunDamageHistory.Add(FEmpathDamageHistoryEvent(StunDamageAmount,- GetWorld()->GetTimeSeconds()));
 
 	// Clean old stun events. They are stored oldest->newest, so we can just iterate to find 
 	// the transition point. This plus the next loop will still constitute at most one pass 
@@ -647,7 +652,7 @@ void AEmpathCharacter::TakeStunDamage(const float StunDamageAmount, const AContr
 	int32 NumToRemove = 0;
 	for (int32 Idx = 0; Idx < StunDamageHistory.Num(); ++Idx)
 	{
-		FDamageHistoryEvent& DHE = StunDamageHistory[Idx];
+		FEmpathDamageHistoryEvent& DHE = StunDamageHistory[Idx];
 		if (GetWorld()->TimeSince(DHE.EventTimestamp) > StunTimeThreshold)
 		{
 				NumToRemove++;
@@ -668,7 +673,7 @@ void AEmpathCharacter::TakeStunDamage(const float StunDamageAmount, const AContr
 	// Remaining history array is now guaranteed to be inside the time threshold.
 	// Just add up and stun if nececessary. This way we don't have to process on Tick.
 	float AccumulatedDamage = 0.f;
-	for (FDamageHistoryEvent& DHE : StunDamageHistory)
+	for (FEmpathDamageHistoryEvent& DHE : StunDamageHistory)
 	{
 		AccumulatedDamage += DHE.DamageAmount;
 		if (AccumulatedDamage > StunDamageThreshold)
@@ -1489,3 +1494,53 @@ void AEmpathCharacter::EndClimb(bool bInterrupted)
 	bIsClimbing = false;
 }
 
+bool AEmpathCharacter::GetBestTeleportLocation_Implementation(FHitResult TeleportHit, 
+	FVector TeleportOrigin, 
+	FVector& OutTeleportLocation, 
+	ANavigationData* NavData, 
+	TSubclassOf<UNavigationQueryFilter> FilterClass) const
+{
+	// Return false if we cannot be teleported to or are not walking, are not on the navmesh, or are too far away
+	if (!bCanBeTeleportedTo)
+	{
+		return false;
+	}
+	UCharacterMovementComponent* CMC = GetCharacterMovement();
+	if (CMC && CMC->MovementMode != EMovementMode::MOVE_Walking)
+	{
+		return false;
+	}
+
+	// Check if this character is on the navmesh
+	FVector FootLocation = GetActorLocation();
+	FootLocation.Z -= (GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	FVector ProjectedPoint;
+	const UObject* ObjectThis = Cast<UObject>(this);
+	if (UEmpathFunctionLibrary::EmpathProjectPointToNavigation(this, 
+		ProjectedPoint, 
+		FootLocation, 
+		NavData, 
+		FilterClass, 
+		TeleportQueryTestExtent))
+	{
+		// Check if the hit distance was far enough away from the pawn
+		FVector HitVectorXY = (GetActorLocation() - TeleportHit.ImpactPoint) * FVector(1.0f, 1.0f, 0.0f);
+		if (HitVectorXY.Size() > TeleportPositionMinXYDistance)
+		{
+			// If so, the point is valid
+			OutTeleportLocation = TeleportHit.ImpactPoint;
+			return true;
+		}
+
+		// If not, calculate a valid location from the XY vector
+		HitVectorXY = HitVectorXY.GetSafeNormal() * TeleportPositionMinXYDistance;
+
+		// Add height back in since we flattened it earlier
+		HitVectorXY.Z += GetActorLocation().Z - (GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+		OutTeleportLocation = HitVectorXY;
+		return true;
+	}
+	OutTeleportLocation = FVector::ZeroVector;
+	return false;
+
+}

@@ -1,6 +1,7 @@
 // Copyright 2018 Team Empath All Rights Reserved
 
 #include "EmpathTeleportBeacon.h"
+#include "AI/Navigation/NavigationData.h"
 
 
 // Sets default values
@@ -23,5 +24,14 @@ void AEmpathTeleportBeacon::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+}
+
+bool AEmpathTeleportBeacon::GetBestTeleportLocation_Implementation(FHitResult TeleportHit,
+	FVector TeleportOrigin,
+	FVector& OutTeleportLocation,
+	ANavigationData* NavData,
+	TSubclassOf<UNavigationQueryFilter> FilterClass) const
+{
+	return true;
 }
 

@@ -85,7 +85,7 @@ void UEmpathFunctionLibrary::AngleAndAxisBetweenVectors(FVector A, FVector B, fl
 	return;
 }
 
-AEmpathAIManager* UEmpathFunctionLibrary::GetAIManager(UObject* WorldContextObject)
+AEmpathAIManager* UEmpathFunctionLibrary::GetAIManager(const UObject* WorldContextObject)
 {
 	AEmpathGameModeBase* EmpathGMD = WorldContextObject->GetWorld()->GetAuthGameMode<AEmpathGameModeBase>();
 	if (EmpathGMD)
@@ -322,7 +322,7 @@ bool UEmpathFunctionLibrary::SuggestProjectileVelocity(const UObject* WorldConte
 }
 
 
-void UEmpathFunctionLibrary::CalculateJumpTimings(UObject* WorldContextObject, FVector LaunchVelocity, FVector StartLocation, FVector EndLocation, float& OutAscendingTime, float& OutDescendingTime)
+void UEmpathFunctionLibrary::CalculateJumpTimings(const UObject* WorldContextObject, FVector LaunchVelocity, FVector StartLocation, FVector EndLocation, float& OutAscendingTime, float& OutDescendingTime)
 {
 	// Cache variables
 	UWorld* World = WorldContextObject->GetWorld();
@@ -360,7 +360,7 @@ void UEmpathFunctionLibrary::CalculateJumpTimings(UObject* WorldContextObject, F
 	}
 }
 
-bool UEmpathFunctionLibrary::EmpathProjectPointToNavigation(UObject* WorldContextObject, FVector& ProjectedPoint, FVector Point, ANavigationData* NavData, TSubclassOf<UNavigationQueryFilter> FilterClass, const FVector QueryExtent)
+bool UEmpathFunctionLibrary::EmpathProjectPointToNavigation(const UObject* WorldContextObject, FVector& ProjectedPoint, FVector Point, ANavigationData* NavData, TSubclassOf<UNavigationQueryFilter> FilterClass, const FVector QueryExtent)
 {
 	UWorld* const World = WorldContextObject->GetWorld();
 	UNavigationSystem* const NavSys = UNavigationSystem::GetCurrent(World);
@@ -371,7 +371,7 @@ bool UEmpathFunctionLibrary::EmpathProjectPointToNavigation(UObject* WorldContex
 		if (NavData == nullptr)
 		{
 			const FNavAgentProperties* AgentProps = nullptr;
-			if (INavAgentInterface* AgentContext = Cast<INavAgentInterface>(WorldContextObject))
+			if (const INavAgentInterface* AgentContext = Cast<INavAgentInterface>(WorldContextObject))
 			{
 				AgentProps = &AgentContext->GetNavAgentPropertiesRef();
 			}
@@ -383,10 +383,10 @@ bool UEmpathFunctionLibrary::EmpathProjectPointToNavigation(UObject* WorldContex
 		// Should work if it is an AController.
 		if (FilterClass == nullptr)
 		{
-			AAIController* AI = Cast<AAIController>(WorldContextObject);
+			const AAIController* AI = Cast<AAIController>(WorldContextObject);
 			if (AI == nullptr)
 			{
-				if (APawn* Pawn = Cast<APawn>(WorldContextObject))
+				if (const APawn* Pawn = Cast<APawn>(WorldContextObject))
 				{
 					AI = Cast<AAIController>(Pawn->GetController());
 				}
@@ -450,4 +450,96 @@ bool UEmpathFunctionLibrary::EmpathHasPathToLocation(AEmpathCharacter* EmpathCha
 
 	return false;
 }
+
+float UEmpathFunctionLibrary::GetUndilatedDeltaTime(const UObject* WorldContextObject)
+{
+	float CurrTimeDilation = WorldContextObject->GetWorld()->GetWorldSettings()->TimeDilation;
+	return WorldContextObject->GetWorld()->GetTimeSeconds() / (CurrTimeDilation > 0.0f ? CurrTimeDilation : 1.0f);
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_BlockingHit(const struct FHitResult& Hit, bool& bBlockingHit)
+{
+	bBlockingHit = Hit.bBlockingHit;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_InitialOverlap(const struct FHitResult& Hit, bool& bInitialOverlap)
+{
+	bInitialOverlap = Hit.bStartPenetrating;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_Time(const struct FHitResult& Hit, float& Time)
+{
+	Time = Hit.Time;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_Distance(const struct FHitResult& Hit, float& Distance)
+{
+	Distance = Hit.Distance;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_Location(const struct FHitResult& Hit, FVector& Location)
+{
+	Location = Hit.Location;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_ImpactPoint(const struct FHitResult& Hit, FVector& ImpactPoint)
+{
+	ImpactPoint = Hit.ImpactPoint;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_Normal(const struct FHitResult& Hit, FVector& Normal)
+{
+	Normal = Hit.Normal;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_ImpactNormal(const struct FHitResult& Hit, FVector& ImpactNormal)
+{
+	ImpactNormal = Hit.ImpactNormal;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_PhysMat(const struct FHitResult& Hit, class UPhysicalMaterial*& PhysMat)
+{
+	PhysMat = Hit.PhysMaterial.Get();
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_Actor(const struct FHitResult& Hit, class AActor*& HitActor)
+{
+	HitActor = Hit.Actor.Get();
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_Component(const struct FHitResult& Hit, class UPrimitiveComponent*& HitComponent)
+{
+	HitComponent = Hit.Component.Get();
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_BoneName(const struct FHitResult& Hit, FName& HitBoneName)
+{
+	HitBoneName = Hit.BoneName;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_MyBoneName(const struct FHitResult& Hit, FName& MyHitBoneName)
+{
+	MyHitBoneName = Hit.MyBoneName;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_Item(const struct FHitResult& Hit, int32& HitItem)
+{
+	HitItem = Hit.Item;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_FaceIndex(const struct FHitResult& Hit, int32& FaceIndex)
+{
+	FaceIndex = Hit.FaceIndex;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_TraceStart(const struct FHitResult& Hit, FVector& TraceStart)
+{
+	TraceStart = Hit.TraceStart;
+}
+
+FORCEINLINE_DEBUGGABLE void UEmpathFunctionLibrary::BreakHit_TraceEnd(const struct FHitResult& Hit, FVector& TraceEnd)
+{
+	TraceEnd = Hit.TraceEnd;
+}
+
 

@@ -5,9 +5,50 @@
 #include "EmpathDamageType.h"
 #include "EmpathFunctionLibrary.h"
 #include "EmpathHandActor.h"
+#include "EmpathTeleportBeacon.h"
+#include "AI/Navigation/NavigationData.h"
+#include "Runtime/Engine/Public/EngineUtils.h"
+#include "EmpathCharacter.h"
+#include "DrawDebugHelpers.h"
 
 // Stats for UE Profiler
 DECLARE_CYCLE_STAT(TEXT("Empath VR Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_VRCharacter);
+DECLARE_CYCLE_STAT(TEXT("Empath VR Char Teleport Trace"), STAT_EMPATH_TraceTeleport, STATGROUP_EMPATH_VRCharacter);
+
+// Log categories
+DEFINE_LOG_CATEGORY_STATIC(LogAIController, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogAIVision, Log, All);
+
+// Console variable setup so we can enable and disable debugging from the console
+static TAutoConsoleVariable<int32> CVarEmpathTeleportDrawDebug(
+	TEXT("Empath.TeleportDrawDebug"),
+	0,
+	TEXT("Whether to enable teleportation debug.\n")
+	TEXT("0: Disable, 1: Enabled"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+static const auto TeleportDrawDebug = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.TeleportDrawDebug"));
+
+
+static TAutoConsoleVariable<float> CVarEmpathTeleportDebugLifetime(
+	TEXT("Empath.TeleportDebugLifetime"),
+	3.0f,
+	TEXT("Duration of debug drawing for teleporting, in seconds."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+static const auto TeleportDebugLifetime = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.TeleportDebugLifetime"));
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#define TELEPORT_LOC(_Loc, _Radius, _Color)				if (TeleportDrawDebug->GetInt()) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, -1.0f, 0, 3.0f); }
+#define TELEPORT_LINE(_Loc, _Dest, _Color)				if (TeleportDrawDebug->GetInt()) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, -1.0f, 0, 3.0f); }
+#define TELEPORT_LOC_DURATION(_Loc, _Radius, _Color)	if (TeleportDrawDebug->GetInt()) { DrawDebugSphere(GetWorld(), _Loc, _Radius, 16, _Color, false, TeleportDebugLifetime->GetFloat(), 0, 3.0f); }
+#define TELEPORT_LINE_DURATION(_Loc, _Dest, _Color)		if (TeleportDrawDebug->GetInt()) { DrawDebugLine(GetWorld(), _Loc, _Dest, _Color, false, TeleportDebugLifetime->GetFloat(), 0, 3.0f); }
+#define TELEPORT_TRACE_DEBUG_TYPE(_Params)				if (TeleportDrawDebug->GetInt()) { _Params.DrawDebugType = EDrawDebugTrace::ForOneFrame; }
+#else
+#define TELEPORT_LOC(_Loc, _Radius, _Color)				/* nothing */
+#define TELEPORT_LINE(_Loc, _Dest, _Color)				/* nothing */
+#define TELEPORT_LOC_DURATION(_Loc, _Radius, _Color)	/* nothing */
+#define TELEPORT_LINE_DURATION(_Loc, _Dest, _Color)		/* nothing */
+#define TELEPORT_TRACE_DEBUG_TYPE()						/* nothing */
+#endif
 
 AEmpathPlayerCharacter::AEmpathPlayerCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -25,6 +66,14 @@ AEmpathPlayerCharacter::AEmpathPlayerCharacter(const FObjectInitializer& ObjectI
 	StunTimeThreshold = 0.5f;
 	StunDurationDefault = 3.0f;
 	StunImmunityTimeAfterStunRecovery = 3.0f;
+	TeleportMagnitude = 1300.0f;
+	DashMagnitude = 500.0f;
+	TeleportRadius = 4.0f;
+	TeleportVelocityLerpSpeed = 20.0f;
+	TeleportBeaconMinDistance = 20.0f;
+	TeleportProjectQueryExtent = FVector(150.0f, 150.0f, 150.0f);
+	TeleportTraceObjectTypes.Add((TEnumAsByte<EObjectTypeQuery>)ECC_WorldStatic); // World Statics
+	TeleportTraceObjectTypes.Add((TEnumAsByte<EObjectTypeQuery>)ECC_Teleport); // Teleport channel
 
 	// Initialize damage capsule
 	DamageCapsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("DamageCapsule"));
@@ -83,6 +132,9 @@ void AEmpathPlayerCharacter::BeginPlay()
 		LeftHandReference->RegisterHand(RightHandReference, this, RightMotionController);
 	}
 
+
+	// Cache the navmesh
+	CacheNavMesh();
 }
 
 void AEmpathPlayerCharacter::Tick(float DeltaTime)
@@ -151,12 +203,6 @@ AEmpathPlayerController* AEmpathPlayerCharacter::GetEmpathPlayerCon() const
 		return EmpathPlayerController;
 	}
 	return Cast<AEmpathPlayerController>(GetController());
-}
-
-bool AEmpathPlayerCharacter::IsTeleporting_Implementation() const
-{
-	// TODO: Hook this up with our teleportation script
-	return false;
 }
 
 void AEmpathPlayerCharacter::TeleportToVR(FVector Destination, float DeltaYaw)
@@ -369,7 +415,7 @@ bool AEmpathPlayerCharacter::CanBeStunned_Implementation()
 void AEmpathPlayerCharacter::TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser)
 {
 	// Log stun event
-	StunDamageHistory.Add(FDamageHistoryEvent(StunDamageAmount, -GetWorld()->GetTimeSeconds()));
+	StunDamageHistory.Add(FEmpathDamageHistoryEvent(StunDamageAmount, -GetWorld()->GetTimeSeconds()));
 
 	// Clean old stun events. They are stored oldest->newest, so we can just iterate to find 
 	// the transition point. This plus the next loop will still constitute at most one pass 
@@ -378,7 +424,7 @@ void AEmpathPlayerCharacter::TakeStunDamage(const float StunDamageAmount, const 
 	int32 NumToRemove = 0;
 	for (int32 Idx = 0; Idx < StunDamageHistory.Num(); ++Idx)
 	{
-		FDamageHistoryEvent& DHE = StunDamageHistory[Idx];
+		FEmpathDamageHistoryEvent& DHE = StunDamageHistory[Idx];
 		if (GetWorld()->TimeSince(DHE.EventTimestamp) > StunTimeThreshold)
 		{
 			NumToRemove++;
@@ -399,7 +445,7 @@ void AEmpathPlayerCharacter::TakeStunDamage(const float StunDamageAmount, const 
 	// Remaining history array is now guaranteed to be inside the time threshold.
 	// Just add up and stun if nececessary. This way we don't have to process on Tick.
 	float AccumulatedDamage = 0.f;
-	for (FDamageHistoryEvent& DHE : StunDamageHistory)
+	for (FEmpathDamageHistoryEvent& DHE : StunDamageHistory)
 	{
 		AccumulatedDamage += DHE.DamageAmount;
 		if (AccumulatedDamage > StunDamageThreshold)
@@ -455,7 +501,245 @@ void AEmpathPlayerCharacter::EndStun()
 	}
 }
 
-void AEmpathPlayerCharacter::ReceiveStunEnd_Implementation()
+void AEmpathPlayerCharacter::TraceTeleportLocation(FVector Origin, FVector Direction, float Magnitude)
 {
+	// Declare scope cycle for profiler
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_TraceTeleport);
+
+	// Update the velocity
+	TeleportCurrentVelocity = FMath::VInterpConstantTo(TeleportCurrentVelocity, Direction * Magnitude, GetWorld()->GetDeltaSeconds(), TeleportVelocityLerpSpeed);
+
+	// Trace for any teleport locations we may already be inside of,
+	// and remove them from our actual teleport trace
+	TArray<AEmpathTeleportBeacon*> OverlappingTeleportTargets;
+	TArray<FHitResult> BeaconTraceHits;
+	const FVector BeaconTraceOrigin = Origin;
+	const FVector BeaconTraceEnd = Origin + (Direction.GetSafeNormal() * TeleportBeaconMinDistance);
+	FCollisionQueryParams BeaconTraceParams(FName(TEXT("BeaconTrace")), false, this);
+	if (GetWorld()->LineTraceMultiByChannel(BeaconTraceHits, BeaconTraceOrigin, BeaconTraceEnd, ECC_Teleport, BeaconTraceParams))
+	{
+		// Add each overlapping beacon to the trace ignore list
+		for (FHitResult BeaconTraceResult : BeaconTraceHits)
+		{
+			AEmpathTeleportBeacon* OverlappingBeacon = Cast<AEmpathTeleportBeacon>(BeaconTraceResult.Actor.Get());
+			if (OverlappingBeacon)
+			{
+				OverlappingTeleportTargets.Add(OverlappingBeacon);
+			}
+		}
+	}
+	
+	// Initialize and setup trace parameters
+	FPredictProjectilePathParams TeleportTraceParams = FPredictProjectilePathParams(TeleportRadius, Origin, TeleportCurrentVelocity, 3.0f);
+	TeleportTraceParams.bTraceWithCollision = true;
+	TeleportTraceParams.bTraceWithChannel = true;
+	TeleportTraceParams.ObjectTypes.Append(TeleportTraceObjectTypes);
+	TeleportTraceParams.ActorsToIgnore.Add(this);
+	if (RightHandReference)
+	{
+		TeleportTraceParams.ActorsToIgnore.Add(RightHandReference);
+		TeleportTraceParams.ActorsToIgnore.Add(RightHandReference->HeldObject);
+	}
+	if (LeftHandReference)
+	{
+		TeleportTraceParams.ActorsToIgnore.Add(LeftHandReference);
+		TeleportTraceParams.ActorsToIgnore.Add(LeftHandReference->HeldObject);
+	}
+	TeleportTraceParams.ActorsToIgnore.Append(OverlappingTeleportTargets);
+	TELEPORT_TRACE_DEBUG_TYPE(TeleportTraceParams)
+
+	// Do the trace and update variables
+	FPredictProjectilePathResult TraceResult;
+	bool TraceHit = UGameplayStatics::PredictProjectilePath(this, TeleportTraceParams, TraceResult);
+	TeleportTraceSplinePositions.Empty(TraceResult.PathData.Num());
+	for (const FPredictProjectilePathPointData& PathPoint : TraceResult.PathData)
+	{
+		TeleportTraceSplinePositions.Add(PathPoint.Location);
+	}
+	
+	// Check if the hit location is valid
+	if (TraceHit)
+	{
+		TELEPORT_LOC_DURATION(TraceResult.HitResult.ImpactPoint, 200.0f, FColor::Yellow);
+		FVector TraceImpactPoint = TraceResult.HitResult.ImpactPoint;
+		bool bNewIsValid = IsTeleportTraceValid(TraceResult.HitResult, Origin);
+		UpdateTeleportCurrLocValid(bNewIsValid);
+
+		// Draw debug shapes if appropriate
+		if (bNewIsValid)
+		{
+			TELEPORT_LOC_DURATION(TeleportCurrentLocation, 200.0f, FColor::Green)
+			TELEPORT_LINE_DURATION(Origin, TeleportCurrentLocation, FColor::Green)
+		}
+		else
+		{
+			TELEPORT_LOC_DURATION(TeleportCurrentLocation, 200.0f, FColor::Red)
+			TELEPORT_LINE_DURATION(Origin, TeleportCurrentLocation, FColor::Red)
+		}
+	}
+	else
+	{
+		UpdateTeleportCurrLocValid(false);
+	}
+
+	OnTeleportTraceUpdated();
 	return;
+}
+
+bool AEmpathPlayerCharacter::IsTeleportTraceValid(FHitResult TeleportHit, FVector TeleportOrigin)
+{
+	// Return false if there was an initial overlap or no trace hit
+	if (TeleportHit.bStartPenetrating)
+	{
+		return false;
+	}
+
+	// Cache the actor hit
+	AActor* HitActor = TeleportHit.Actor.Get();
+
+	// Check if the object is a teleport beacon
+	AEmpathTeleportBeacon* NewTeleportBeacon = Cast<AEmpathTeleportBeacon>(HitActor);
+	if (NewTeleportBeacon)
+	{
+		// Update highlighting on new and old beacons
+		if (TargetTeleportBeacon && TargetTeleportBeacon != NewTeleportBeacon)
+		{
+			TargetTeleportBeacon->OnReleasedForTeleport();
+			OnTeleportBeaconReleased();
+		}
+		
+
+		// If we can get a valid position from the teleport beacon, go with that
+		if (NewTeleportBeacon->GetBestTeleportLocation(TeleportHit,
+			TeleportOrigin,
+			TeleportCurrentLocation,
+			PlayerNavData,
+			PlayerNavFilterClass))
+		{
+			if (ProjectPointToPlayerNavigation(TeleportCurrentLocation, TeleportCurrentLocation))
+			{
+				TargetTeleportBeacon = NewTeleportBeacon;
+				TargetTeleportBeacon->OnTargetedForTeleport();
+				OnTeleportBeaconTargeted();
+				return true;
+			}
+		}
+	}
+
+	// Otherwise, ensure any previously highlighted beacons are inactive
+	if (TargetTeleportBeacon)
+	{
+		TargetTeleportBeacon->OnReleasedForTeleport();
+		OnTeleportBeaconReleased();
+		TargetTeleportBeacon = nullptr;
+	}
+
+	// Next, check if the hit target is an Empath Character
+	AEmpathCharacter* NewTargetChar = Cast<AEmpathCharacter>(HitActor);
+	if (NewTargetChar)
+	{
+		// Un-target any current teleport character
+		if (TargetTeleportChar && TargetTeleportChar != NewTargetChar)
+		{
+			TargetTeleportChar->OnReleasedForTeleport();
+			OnTeleportCharReleased();
+		}
+
+		// Check if this actor has a valid teleportation that is on the ground
+		if (NewTargetChar->GetBestTeleportLocation(TeleportHit,
+			TeleportOrigin,
+			TeleportCurrentLocation,
+			PlayerNavData,
+			PlayerNavFilterClass))
+		{
+			if (ProjectPointToPlayerNavigation(TeleportCurrentLocation, TeleportCurrentLocation))
+			{
+				TargetTeleportChar = NewTargetChar;
+				TargetTeleportBeacon->OnTargetedForTeleport();
+				OnTeleportCharTargeted();
+				return true;
+			}
+		}
+		// Otherwise, ensure currently targeted empath character is un-targeted
+		if (TargetTeleportChar)
+		{
+			TargetTeleportChar->OnReleasedForTeleport();
+			TargetTeleportChar = nullptr;
+			OnTeleportCharReleased();
+		}
+		return false;
+	}
+
+	// Again, ensure previous targeted empath character is un-targeted
+	// (this is because we return false in the above case
+	if (TargetTeleportChar)
+	{
+		TargetTeleportChar->OnReleasedForTeleport();
+		TargetTeleportChar = nullptr;
+		OnTeleportCharReleased();
+	}
+
+	// Finally, check if it is simply a space on the navmesh
+	if (ProjectPointToPlayerNavigation(TeleportHit.Location, TeleportCurrentLocation))
+	{
+		return true;
+	}
+	TeleportCurrentLocation = FVector::ZeroVector;
+	return false;
+}
+
+void AEmpathPlayerCharacter::CacheNavMesh()
+{
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		for (ANavigationData* CurrNavData : TActorRange<ANavigationData>(World))
+		{
+			if (GetNameSafe(CurrNavData) == "RecastNavMesh-Player")
+			{
+				PlayerNavData = CurrNavData;
+				break;
+			}
+		}
+	}
+}
+
+bool AEmpathPlayerCharacter::ProjectPointToPlayerNavigation(FVector Point, FVector& OutPoint)
+{
+	if (UEmpathFunctionLibrary::EmpathProjectPointToNavigation(this,
+		OutPoint,
+		Point,
+		PlayerNavData,
+		PlayerNavFilterClass,
+		TeleportProjectQueryExtent))
+	{
+		// Ensure the projected point is on the ground
+		FHitResult GroundTraceHit;
+		const FVector GroundTraceOrigin = OutPoint;
+		const FVector GroundTraceEnd = GroundTraceOrigin + FVector(0.0f, 0.0f, -200.0f);
+		FCollisionQueryParams GroundTraceParams(FName(TEXT("GroundTrace")), false, this);
+		if (GetWorld()->LineTraceSingleByChannel(GroundTraceHit, GroundTraceOrigin, GroundTraceEnd, ECC_WorldStatic, GroundTraceParams))
+		{
+			OutPoint = GroundTraceHit.ImpactPoint;
+			return true;
+		}
+	}
+	return false;
+	OutPoint = FVector::ZeroVector;
+}
+
+void AEmpathPlayerCharacter::UpdateTeleportCurrLocValid(const bool bNewValid)
+{
+	if (bNewValid && !bIsTeleportCurrLocValid)
+	{
+		bIsTeleportCurrLocValid = true;
+		OnTeleportLocationFound();
+		return;
+	}
+	if (!bNewValid && bIsTeleportCurrLocValid)
+	{
+		bIsTeleportCurrLocValid = false;
+		OnTeleportLocationLost();
+		return;
+	}
 }

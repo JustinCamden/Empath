@@ -103,14 +103,14 @@ void UEmpathKinematicVelocityComponent::CalculateKinematicVelocity()
 	{
 
 		// Log the velocity and the timestamp
-		VelocityHistory.Add(FVelocityFrame(CurrentFrameVelocity, CurrentFrameAngularVelocity, World->GetTimeSeconds()));
+		VelocityHistory.Add(FEmpathVelocityFrame(CurrentFrameVelocity, CurrentFrameAngularVelocity, World->GetTimeSeconds()));
 
 		// Loop through and average the array to get our new kinematic velocity.
 		// Clean up while we're at it. This should take at most one iteration through the array.
 		int32 NumToRemove = 0;
 		for (int32 Idx = 0; Idx < VelocityHistory.Num(); ++Idx)
 		{
-			FVelocityFrame& VF = VelocityHistory[Idx];
+			FEmpathVelocityFrame& VF = VelocityHistory[Idx];
 			if (World->TimeSince(VF.FrameTimeStamp) > SampleTime)
 			{
 				NumToRemove++;
@@ -132,7 +132,7 @@ void UEmpathKinematicVelocityComponent::CalculateKinematicVelocity()
 		// Add it all up and average by the remaining frames to get the current kinematic velocity.
 		FVector TotalVelocity = FVector::ZeroVector;
 		FVector TotalAngularVelocity = FVector::ZeroVector;
-		for (FVelocityFrame& VF : VelocityHistory)
+		for (FEmpathVelocityFrame& VF : VelocityHistory)
 		{
 			TotalVelocity += VF.Velocity;
 			TotalAngularVelocity += VF.AngularVelocity;

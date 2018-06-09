@@ -110,7 +110,7 @@ private:
 	FQuat DeltaRotation;
 
 	/** Per-frame record of kinematic velocity. */
-	TArray<FVelocityFrame> VelocityHistory;
+	TArray<FEmpathVelocityFrame> VelocityHistory;
 
 	/** The kinematic velocity of this component, averaged from all the recorded velocities within the same time. */
 	FVector CurrentKinematicVelocity;

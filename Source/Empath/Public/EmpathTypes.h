@@ -8,6 +8,7 @@
 
 // Collision definitions
 #define ECC_Damage	ECC_GameTraceChannel1
+#define ECC_Teleport	ECC_GameTraceChannel2
 
 /**
  Holder for all the custom data types and names used by the engine
@@ -82,7 +83,7 @@ public:
 };
 
 UENUM(BlueprintType)
-enum class EPlayerAwarenessState : uint8
+enum class EEmpathPlayerAwarenessState : uint8
 {
 	KnownLocation,
 	PotentiallyLost,
@@ -100,7 +101,7 @@ enum class EEmpathBehaviorMode : uint8
 };
 
 USTRUCT(BlueprintType)
-struct FPerBoneDamageScale
+struct FEmpathPerBoneDamageScale
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -114,13 +115,13 @@ struct FPerBoneDamageScale
 	UPROPERTY(EditDefaultsOnly, Category = "Empath|PerBoneDamage")
 	float DamageScale;
 
-	FPerBoneDamageScale() :
+	FEmpathPerBoneDamageScale() :
 		DamageScale(1.0f)
 	{}
 };
 
 USTRUCT(BlueprintType)
-struct FDamageHistoryEvent
+struct FEmpathDamageHistoryEvent
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -134,7 +135,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Empath|DamageHistory")
 	float EventTimestamp;
 
-	FDamageHistoryEvent(float InDamageAmount = 0.0f, float InEventTimestamp = 0.0f)
+	FEmpathDamageHistoryEvent(float InDamageAmount = 0.0f, float InEventTimestamp = 0.0f)
 		: DamageAmount(InDamageAmount),
 		EventTimestamp(InEventTimestamp)
 	{}
@@ -203,7 +204,7 @@ struct FEmpathCharPhysicsStateSettingsEntry
 	FEmpathCharPhysicsStateSettings Settings;
 };
 
-struct FVelocityFrame
+struct FEmpathVelocityFrame
 {
 public:
 
@@ -211,7 +212,7 @@ public:
 	FVector AngularVelocity;
 	float FrameTimeStamp;
 
-	FVelocityFrame(FVector InVelocity = FVector::ZeroVector, FVector InAngularVelocity = FVector::ZeroVector, float InEventTimestamp = 0.0f)
+	FEmpathVelocityFrame(FVector InVelocity = FVector::ZeroVector, FVector InAngularVelocity = FVector::ZeroVector, float InEventTimestamp = 0.0f)
 		: Velocity(InVelocity),
 		AngularVelocity(InAngularVelocity),
 		FrameTimeStamp(InEventTimestamp)
@@ -284,4 +285,28 @@ struct FEmpathNavRecoverySettings
 		SearchRadiusGrowthRateOuter(500.0f),
 		NavRecoverySkipFrames(1)
 	{}
+};
+
+UENUM(BlueprintType)
+enum class EEmpathHand : uint8
+{
+	Left,
+	Right,
+	Both
+};
+
+UENUM(BlueprintType)
+enum class EEmpathBinaryHand : uint8
+{
+	Left,
+	Right
+};
+
+UENUM(BlueprintType)
+enum class EEmpathTeleportState : uint8
+{
+	NotTeleporting,
+	TracingTeleport,
+	Teleporting,
+	EndingTeleport
 };
