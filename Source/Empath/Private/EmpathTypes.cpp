@@ -21,3 +21,4 @@ const FName FEmpathCollisionProfiles::Ragdoll(TEXT("Ragdoll"));
 const FName FEmpathCollisionProfiles::PawnIgnoreAll(TEXT("PawnIgnoreAll"));
 const FName FEmpathCollisionProfiles::DamageCollision(TEXT("DamageCollision"));
 const FName FEmpathCollisionProfiles::HandCollision(TEXT("HandCollision"));
+const FName FEmpathCollisionProfiles::NoCollision(TEXT("NoCollision"));

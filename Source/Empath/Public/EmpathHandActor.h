@@ -86,11 +86,11 @@ protected:
 
 private:
 	/** The Sphere component used for collision. */
-	UPROPERTY(Category = "Empath|Hand", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(Category = EmpathHandActor, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	USphereComponent* SphereComponent;
 
 	/** The kinematic velocity component used for movement detection. */
-	UPROPERTY(Category = "Empath|Hand", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(Category = EmpathHandActor, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	UEmpathKinematicVelocityComponent* KinematicVelocityComponent;
 	
 	/** Reference to the other hand actor. */
@@ -106,7 +106,7 @@ private:
 	USceneComponent* FollowedComponent;
 
 	/** The main skeletal mesh associated with this hand. */
-	UPROPERTY(Category = "Empath|Hand", VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(Category = EmpathHandActor, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* MeshComponent;
 
 	/** Whether we are currently separated from the component we are following. */

@@ -8,6 +8,7 @@
 #include "EmpathTeamAgentInterface.h"
 #include "EmpathAIController.generated.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(ATest, All, All);
 // Stat groups for UE Profiler
 DECLARE_STATS_GROUP(TEXT("EmpathAICon"), STATGROUP_EMPATH_AICon, STATCAT_Advanced);
 
@@ -213,23 +214,23 @@ public:
 	void OnLostPlayerTarget();
 
 	/** Called when the player target is lost. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnLostPlayerTarget"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Lost Player Target"))
 	void ReceiveLostPlayerTarget();
 
 	void OnSearchForPlayerStarted();
 
 	/** Called when this AI should begin searching for the target. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnSearchForPlayerStarted"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Search For Player Started"))
 	void ReceiveSearchForPlayerStarted();
 
 	void OnTargetSeenForFirstTime();
 
 	/** Triggered when an AI has seen its target for the very first time and this AI is not passive. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnTargetSeenForFirstTime"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Target Seen For First Time"))
 	void ReceiveTargetSeenForFirstTime();
 
 	/** Triggered when an AI found a player whose location was previously unknown. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnTargetSpotted"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Target Spotted"))
 	void ReceiveTargetSpotted();
 
 	/** Override that updates the Blackboard with our goal location when successful, and that binds OnBump to our character's capsule collisions. */
@@ -237,40 +238,40 @@ public:
 	FNavPathSharedPtr* OutPath) override;
 
 	/** Called when this AI has made a successful move request. */
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Empath|AI", meta = (DisplayName = "OnTargetSpotted"))
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Empath|AI", meta = (DisplayName = "On Target Spotted"))
 	void ReceiveMoveTo(FVector GoalLocation);
 
 	/** Override that unbinds the capsule bump request */
 	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
 
 	/** Called when a new attack target is selected */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnNewAttackTarget"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On New Attack Target"))
 	void ReceiveNewAttackTarget(AActor* OldTarget, AActor* NewTarget);
 
 	/** Called when the current attack target dies */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnAttackTargetDied"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Attack Target Died"))
 	void ReceiveAttackTargetDied(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the attack target teleports. */
 	void OnAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
 
 	/** Called when the attack target teleports. */
-	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "OnAttackTargetTeleported"))
+	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "On Attack Target Teleported"))
 	void ReceiveAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
 
 	/** Called when the controlled character dies. */
 	void OnCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the controlled character dies. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterDeath"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Character Death"))
 	void ReceiveCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the controlled character becomes stunned. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterStunned"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Character Stunned"))
 	void ReceiveCharacterStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration);
 
 	/** Called when the controlled character is no longer stunned. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnCharacterStunEnd"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Character Stun End"))
 	void ReceiveCharacterStunEnd();
 
 

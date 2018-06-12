@@ -46,6 +46,7 @@ struct FEmpathCollisionProfiles
 	static const FName PawnIgnoreAll;
 	static const FName DamageCollision;
 	static const FName HandCollision;
+	static const FName NoCollision;
 };
 
 USTRUCT(BlueprintType)
@@ -306,7 +307,34 @@ UENUM(BlueprintType)
 enum class EEmpathTeleportState : uint8
 {
 	NotTeleporting,
-	TracingTeleport,
-	Teleporting,
+	TracingTeleportLocation,
+	TeleportingToLocation,
+	TeleportingToRotation,
 	EndingTeleport
+};
+
+USTRUCT(BlueprintType)
+struct FEmpathTeleportTraceSettings
+{
+	GENERATED_USTRUCT_BODY();
+
+	/** Whether we should trace for Teleport Beacons. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bTraceForBeacons;
+
+	/** Whether we should trace for Empath Characters. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bTraceForEmpathChars;
+
+	/** Whether we should trace for World Static Actors. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bTraceForWorldStatic;
+
+	FEmpathTeleportTraceSettings()
+		:bTraceForBeacons(true),
+		bTraceForEmpathChars(true),
+		bTraceForWorldStatic(true)
+	{
+
+	}
 };

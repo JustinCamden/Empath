@@ -15,10 +15,6 @@
 #include "AI/Navigation/NavLinkCustomComponent.h"
 #include "EmpathNavLinkProxy_Jump.h"
 
-// Stats for UE Profiler
-DECLARE_CYCLE_STAT(TEXT("Empath Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_Character);
-DECLARE_CYCLE_STAT(TEXT("Empath Is Ragdoll At Rest Check"), STAT_EMPATH_IsRagdollAtRest, STATGROUP_EMPATH_Character);
-
 // Log categories
 DEFINE_LOG_CATEGORY_STATIC(LogAIController, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogAIVision, Log, All);
@@ -28,7 +24,7 @@ static TAutoConsoleVariable<int32> CVarEmpathAIVisionDrawDebug(
 	TEXT("Empath.AIVisionDrawDebug"),
 	0,
 	TEXT("Whether to enable AI vision debug.\n")
-	TEXT("0: Disable, 1: Enabled"),
+	TEXT("0: Disabled, 1: Enabled"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 static const auto AIVisionDrawDebug = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.AIVisionDrawDebug"));
 
@@ -801,9 +797,9 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 
 	if (World && AttackTarget && AIManager)
 	{
-		// Check is the player is teleporting. If so, we can't see them
+		// Check is the player is teleporting to a new location. If so, we can't see them
 		AEmpathPlayerCharacter* const PlayerTarget = Cast<AEmpathPlayerCharacter>(AttackTarget);
-		if (PlayerTarget && PlayerTarget->IsTeleporting())
+		if (PlayerTarget && PlayerTarget->TeleportState == EEmpathTeleportState::TeleportingToLocation)
 		{
 			SetCanSeeTarget(false);
 			return;

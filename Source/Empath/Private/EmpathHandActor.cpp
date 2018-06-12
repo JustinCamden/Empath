@@ -25,6 +25,7 @@ AEmpathHandActor::AEmpathHandActor(const FObjectInitializer& ObjectInitializer)
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(SphereComponentName);
 	SphereComponent->InitSphereRadius(7.75f);
 	SphereComponent->SetCollisionProfileName(FEmpathCollisionProfiles::HandCollision);
+	SphereComponent->SetEnableGravity(false);
 	RootComponent = SphereComponent;
 
 	// Kinematic velocity
@@ -36,7 +37,9 @@ AEmpathHandActor::AEmpathHandActor(const FObjectInitializer& ObjectInitializer)
 
 	// Mesh component
 	MeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(MeshComponentName);
+	MeshComponent->SetEnableGravity(false);
 	MeshComponent->SetupAttachment(RootComponent);
+	MeshComponent->SetCollisionProfileName(FEmpathCollisionProfiles::NoCollision);
 
 }
 

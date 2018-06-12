@@ -47,6 +47,7 @@ public:
 	// Override for Take Damage that calls our own custom Process Damage script (Since we can't override the OnAnyDamage event in c++)
 	virtual float TakeDamage(float Damage, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
+
 	// ---------------------------------------------------------
 	//	TeamAgent Interface
 
@@ -100,7 +101,7 @@ public:
 	//	Events and receives
 
 	/** Called when the behavior tree has begun running. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "OnAIInitialized"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On AI Initialized"))
 	void ReceiveAIInitalized();
 
 	/** Called when the character dies or their health depletes to 0. */
@@ -112,7 +113,7 @@ public:
 	FOnCharacterDeathDelegate OnDeath;
 
 	/** Called when character becomes stunned. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "BeStunned"))
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "Be Stunned"))
 	void ReceiveStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration);
 
 	/** Called when character becomes stunned. */
@@ -120,7 +121,7 @@ public:
 	FOnCharacterStunnedDelegate OnStunned;
 
 	/** Called when character stops being stunned. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "OnStunEnd"))
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "On Stun End"))
 	void ReceiveStunEnd();
 
 	/** Called when character stops being stunned. */
@@ -128,15 +129,15 @@ public:
 	FOnCharacterStunEndDelegate OnStunEnd;
 
 	/** Called on character physics state end. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnEndCharacterPhysicsState"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "On End Character PhysicsState"))
 	void ReceiveEndCharacterPhysicsState(EEmpathCharacterPhysicsState OldState);
 
 	/** Called on character physics state begin. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnBeginCharacterPhysicsState"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "On Begin Character Physics State"))
 	void ReceiveBeginCharacterPhysicsState(EEmpathCharacterPhysicsState NewState);
 
 	/** Called when the character begins ragdolling. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRagdoll"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Physics", meta = (DisplayName = "On Start Ragdoll"))
 	void ReceiveStartRagdoll();
 
 	/** Called when the character stops ragdolling. */
@@ -144,7 +145,7 @@ public:
 	void ReceiveStopRagdoll();
 
 	/** Called when we begin recovering from the ragdoll. By default, calls StopRagdoll. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Physics", meta = (DisplayName = "OnStartRecoveryFromRagdoll"))
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Physics", meta = (DisplayName = "On Start Recovery From Ragdoll"))
 	void ReceiveStartRecoverFromRagdoll();
 
 
@@ -338,6 +339,9 @@ public:
 	/** Checks to see if our ragdoll is at rest and whether we are not dead. If so, signals us to get up. */
 	void CheckForEndRagdoll();
 
+	/** Updates our ragdoll recovery state. Should only be called on tick. */
+	void TickUpdateRagdollRecoveryState();
+
 
 	// ---------------------------------------------------------
 	//	Movement
@@ -486,7 +490,7 @@ public:
 	void OnNavMeshRecovered();
 
 	/** Called when recovery state fails. By default, restarts the process. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "OnNavMeshRecoveryFailed"))
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "On Nav Mesh Recovery Failed"))
 	void ReceiveNavMeshRecoveryFailed(FVector Location, float TimeSinceStartRecovery, bool bWasOnNavMeshAtStart);
 
 	/** Resets all state variables and clears all failures. */
@@ -528,14 +532,14 @@ public:
 	virtual void OnTickNavMeshRecovery(FEmpathNavRecoverySettings const& CurrentSettings, float DeltaTime, FVector Location, FVector RecoveryDestination);
 
 	/** Called after checking to see whether we have recovered the navmesh. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "OnTickNavMeshRecovery"))
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "On Tick Nav Mesh Recovery"))
 	void ReceiveTickNavMeshRecovery(float DeltaTime, FVector Location, FVector RecoveryDestination);
 
 	/** Called when we failed to find a recovery destination. */
 	virtual void OnNavMeshRecoveryFailed(FVector Location, float TimeSinceStartRecovery);
 
 	/** Called when we failed to find a recovery destination. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "OnFailedToFindRecoveryDestination"))
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Navigation", meta = (DisplayName = "On Failed To Find Recovery Destination"))
 	void ReceiveFailedToFindRecoveryDestination(float DeltaTime, FVector Location, float TimeSinceStartRecovery);
 
 	/** Used for tracking successful path and EQS queries. The latter doesn't allow us to check a return value or respond to the result, so we have to wrap requests with this. */
@@ -581,6 +585,9 @@ public:
 	/** Counter that is incremented each time we call TickNavMeshRecovery. Reset to 0 when recovery completes/starts.  */
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Navigation")
 	int32 NavRecoveryCounter;
+
+	/** Updates the current character's navmesh recovery state. Should only be called on Tick  */
+	void TickUpdateNavMeshRecoveryState(float DeltaTime);
 
 
 	// ---------------------------------------------------------

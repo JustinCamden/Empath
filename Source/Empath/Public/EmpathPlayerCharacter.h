@@ -22,6 +22,7 @@ class AEmpathHandActor;
 class AEmpathTeleportBeacon;
 class ANavigationData;
 class AEmpathCharacter;
+class AEmpathTeleportMarker;
 
 /**
 *
@@ -43,6 +44,9 @@ public:
 	// Constructor to set default variables
 	AEmpathPlayerCharacter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+	// Registers our input
+	virtual void SetupPlayerInputComponent(class UInputComponent* NewInputComponent) override;
+
 	// Pawn overrides for vr.
 	virtual FVector GetPawnViewLocation() const override;
 	virtual FRotator GetViewRotation() const override;
@@ -55,9 +59,11 @@ public:
 	float GetDistanceToVR(AActor* OtherActor) const;
 
 	/** Gets the position of the player character at a specific height,
-	where 1 is their eye height, and 0 is their feet. */
+	* where 1 is their eye height, and 0 is their feet. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|VRCharacter")
 	FVector GetScaledHeightLocation(float HeightScale = 0.9f);
+
+	TArray<AActor*> GetControlledActors();
 
 
 	// ---------------------------------------------------------
@@ -72,23 +78,38 @@ public:
 	bool IsDead() const { return bDead; }
 
 	/** Overridable function for whether the character can die.
-	By default, only true if not Invincible and not Dead. */
+	* By default, only true if not Invincible and not Dead. */
 	UFUNCTION(Category = "Empath|Health", BlueprintCallable, BlueprintNativeEvent)
-	bool CanDie();
+	bool CanDie() const;
 
 	/** Whether the character is currently stunned. */
 	UFUNCTION(Category = "Empath|Combat", BlueprintCallable)
 	bool IsStunned() const { return bStunned; }
 
 	/** Overridable function for whether the character can be stunned.
-	By default, only true if IsStunnable, not Stunned, Dead, and more than
-	StunImmunityTimeAfterStunRecovery has passed since the last time we were stunned. */
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Empath|Combat")
-	bool CanBeStunned();
+	* By default, only true if IsStunnable, not Stunned, Dead, and more than
+	* StunImmunityTimeAfterStunRecovery has passed since the last time we were stunned. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, BlueprintPure, Category = "Empath|Combat")
+	bool CanBeStunned() const;
 
-	/** Returns whether the current character is in the process of teleporting. */
-	UFUNCTION(Category = "Empath|VRCharacter", BlueprintCallable, BlueprintPure)
-	bool IsTeleporting() const { return TeleportState != EEmpathTeleportState::NotTeleporting; }
+	/** Returns whether the current character is in the process of teleporting. Returns false if they are pivoting */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Teleportation")
+	bool IsTeleporting() const;
+
+	/** Returns whether the current character can begin a pivot. 
+	* By default, only true if PivotEnabled, not Stunned, not Dead, and not already teleporting. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, BlueprintPure, Category = "Empath|Teleportation")
+	bool CanPivot() const;
+
+	/** Overridable function for whether the character can dash.
+	* By default, only true if DashEnabled, not Stunned, not Dead, and not already teleporting. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, BlueprintPure, Category = "Empath|Teleportation")
+	bool CanDash() const;
+
+	/** Overridable function for whether the character can teleport.
+	* By default, only true if TeleportEnabled, not Stunned, not Dead, and not already teleporting. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, BlueprintPure, Category = "Empath|Teleportation")
+	bool CanTeleport() const;
 
 
 	// ---------------------------------------------------------
@@ -103,8 +124,24 @@ public:
 	FOnPlayerCharacterDeathDelegate OnDeath;
 
 	/** Called this when this character teleports. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|VRCharacter", meta = (DisplayName = "OnTeleport"))
-	void ReceiveTeleport(FVector Origin, FVector Destination, float DeltaYaw);
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation", meta = (DisplayName = "On Teleport To Location"))
+	void ReceiveTeleportToLocation(FVector Origin, FVector Destination);
+
+	/** Called when a teleport to location attempt times out. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnTeleportToLocationFail();
+
+	/** Called when a teleport to location attempt finishes successfully. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnTeleportToLocationSuccess();
+
+	/** Called when we begin teleporting to a new pivot. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnTeleportToRotation();
+
+	/** Called when a teleport to rotation attempt finishes successfully. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnTeleportToRotationEnd();
 
 	/** Called when character becomes stunned. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Combat", meta = (DisplayName = "BeStunned"))
@@ -115,7 +152,7 @@ public:
 	FOnPlayerCharacterStunnedDelegate OnStunned;
 
 	/** Called when character stops being stunned. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Combat", meta = (DisplayName = "OnStunEnd"))
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Combat", meta = (DisplayName = "On Stun End"))
 	void ReceiveStunEnd();
 
 	/** Called when character stops being stunned. */
@@ -146,9 +183,37 @@ public:
 	// ---------------------------------------------------------
 	//	General Teleportation
 
-	/** Implementation of the teleport function. */
+	/** Whether this character can Dash in principle. */
+	UPROPERTY(Category = "Empath|Teleportation", EditAnywhere, BlueprintReadWrite)
+	bool bDashEnabled;
+
+	/** Whether this character can Teleport in principle. */
+	UPROPERTY(Category = "Empath|Teleportation", EditAnywhere, BlueprintReadWrite)
+	bool bTeleportEnabled;
+
+	/** Whether this character can Pivot in principle. */
+	UPROPERTY(Category = "Empath|Teleportation", EditAnywhere, BlueprintReadWrite)
+	bool bPivotEnabled;
+
+	/** The hand we use for teleportation origin. */
+	UPROPERTY(Category = "Empath|Teleportation", EditAnywhere, BlueprintReadWrite)
+	EEmpathBinaryHand TeleportHand;
+
+	/** Trace settings for Dashing. */
+	UPROPERTY(Category = "Empath|Teleportation", EditAnywhere, BlueprintReadWrite)
+	FEmpathTeleportTraceSettings DashTraceSettings;
+
+	/** Trace settings for Teleporting. */
+	UPROPERTY(Category = "Empath|Teleportation", EditAnywhere, BlueprintReadWrite)
+	FEmpathTeleportTraceSettings TeleportTraceSettings;
+
+	/** Implementation of the teleport to location function. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Teleportation")
-	void TeleportToVR(FVector Destination, float DeltaYaw);
+	void TeleportToLocationVR(FVector Destination);
+
+	/** Implementation of the pivot rotation function. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Teleportation")
+	void TeleportToPivot(float DeltaYaw);
 
 	/** Caches the player navmesh for later use by teleportation. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Teleportation")
@@ -162,7 +227,7 @@ public:
 	TSubclassOf<UNavigationQueryFilter> PlayerNavFilterClass;
 
 	/** The current teleport state of the character. */
-	UPROPERTY(BlueprintReadWrite, Category = "Empath|Teleportation")
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Teleportation")
 	EEmpathTeleportState TeleportState;
 
 	/** The target magnitude of teleportation. */
@@ -188,9 +253,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Empath|Teleportation")
 	float TeleportBeaconMinDistance;
 
-	/** Traces a teleport location from the provided world origin in provided world direction, attempting to reach the provided magnitude. */
+	/*
+	* Traces a teleport location from the provided world origin in provided world direction, attempting to reach the provided magnitude. 
+	* Returns whether the trace was successful
+	* @param bInstantMagnitude Whether we should instantaneously reach the target magnitude (ie for dashing), or smoothly interpolate towards it.
+	*/
 	UFUNCTION(BlueprintCallable, Category = "Empath|Teleportation")
-	void TraceTeleportLocation(FVector Origin, FVector Direction, float Magnitude);
+	bool TraceTeleportLocation(FVector Origin, FVector Direction, float Magnitude, FEmpathTeleportTraceSettings TraceSettings, bool bInterpolateMagnitude);
 
 	/** Object types to collide against when tracing for teleport locations. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
@@ -201,7 +270,7 @@ public:
 	TArray<FVector> TeleportTraceSplinePositions;
 
 	/** Checks to see if our current teleport position is valid. */
-	bool IsTeleportTraceValid(FHitResult TeleportHit, FVector TeleportOrigin);
+	bool IsTeleportTraceValid(FHitResult TeleportHit, FVector TeleportOrigin, FEmpathTeleportTraceSettings TraceSettings);
 
 	/** The teleport position currently targeted by a teleport trace. */
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Teleportation")
@@ -254,9 +323,89 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
 	void OnTeleportLocationLost();
 
-	/** Called after a teleport trace is updated. */
+	/** Called when a dash trace is successfully executed. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
-	void OnTeleportTraceUpdated();
+	void OnDashSuccess();
+
+	/** Called when a dash trace fails to find a valid location. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnDashFail();
+
+	/** The actual target location for our /
+
+	/** The speed at which we move when teleporting and dashing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	float TeleportMovementSpeed;
+
+	/** The speed at which we rotate when pivoting. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	float TeleportRotationSpeed;
+
+	/** The step by which we rotate when pivoting. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	float TeleportPivotStep;
+
+	/** How long we wait after teleport before aborting the teleport. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	float TeleportTimoutTime;
+
+	/** The maximum distance between the teleport goal and the actor position before we stop teleporting. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	float TeleportDistTolerance;
+
+	/** The maximum remaining delta rotation before we stop rotation. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Teleportation")
+	float TeleportRotTolerance;
+
+	/** The yaw to add to the character when teleporting to a new rotation. */
+	UPROPERTY(BlueprintReadOnly, Category = "Empath|Teleportation")
+	float TeleportRemainingDeltaYaw;
+
+	/** Called when a teleport attempt finishes, regardless of whether it was a success or a failure. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Teleportation")
+	void OnTeleportEnd();
+
+	/** Called whenever our teleport state is updated on Tick. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnTickTeleportStateUpdated();
+
+	/** Changes the teleport state */
+	void SetTeleportState(EEmpathTeleportState NewTeleportState);
+
+	/** Called whenever our teleport state is changed. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	void OnTeleportStateChanged(EEmpathTeleportState OldTeleportState);
+
+	/** Makes the teleport trace splines and reticle visible. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Teleportation")
+	void ShowTeleportTrace();
+
+	/** Update the teleport trace splines and targeting reticle. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Teleportation")
+	void UpdateTeleportTrace();
+
+	/** Hides the teleport trace splines and targeting reticle. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Teleportation")
+	void HideTeleportTrace();
+
+
+	/** Gets the teleport trace origin and direction, as appropriate depending on the value of Teleport Hand. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|Teleportation")
+	void GetTeleportTraceOriginAndDirection(FVector& Origin, FVector&Direction);
+
+	/*
+	* Updates based on the current teleport state. Should only be called on tick.
+	* If tracing teleport, calls trace teleport, and updates the spline and teleport marker./
+	* If teleporting, moves the character towards the teleport destination. 
+	*/
+	void TickUpdateTeleportState(float DeltaSeconds);
+
+	/** Our actual teleport goal location. Used to compensate for the offset between the camera and actor location. */
+	FVector TeleportActorLocationGoal;
+
+	/** The last time in world seconds that we began teleporting. */
+	UPROPERTY(BlueprintReadOnly)
+	float TeleportLastStartTime;
 
 
 	// ---------------------------------------------------------
@@ -317,6 +466,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Empath|Combat")
 	float LastDamageTime;
 
+	/** Updates our health regen as appropriate. Should only be called on tick. */
+	void TickUpdateHealthRegen(float DeltaTime);
+
 	// ---------------------------------------------------------
 	//	Stun handling
 
@@ -360,6 +512,44 @@ public:
 	/** Checks whether we should become stunned */
 	virtual void TakeStunDamage(const float StunDamageAmount, const AController* EventInstigator, const AActor* DamageCauser);
 
+	// ---------------------------------------------------------
+	//	Input
+	/*
+	* The minimum magnitude of a 2D axis before it triggers a Pressed event. 
+	* When the magnitude drops below the threshold, a Released event is triggered.
+	*/
+	UPROPERTY(Category = "Empath|PlayerInput", BlueprintReadOnly)
+	float InputAxisEventThreshold;
+
+	/** Called when the magnitude of the Dash input vector reaches the AxisEventThreshold. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|PlayerInput")
+	void OnMovePressed();
+
+	/** Called when the magnitude of the Dash input vector drops below the AxisEventThreshold. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|PlayerInput")
+	void OnMoveReleased();
+
+	/** Called when the magnitude of the Dash input vector reaches the AxisEventThreshold. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|PlayerInput")
+	void OnTeleportPressed();
+
+	/** Called when the magnitude of the Teleport input vector drops below the AxisEventThreshold. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|PlayerInput")
+	void OnTeleportReleased();
+
+	/** Called when the Alt Movement key is pressed. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|PlayerInput", meta = (DisplayName = "On Alt Movement Pressed"))
+	void ReceiveAltMovementPressed();
+
+	/** Called when the Alt Movement key is released. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Empath|PlayerInput", meta = (DisplayName = "On Alt Movement Released"))
+	void ReceiveAltMovementReleased();
+
+	/** Updates and calls input axis event states. Necessary to be called on tick for events to fire and update properly. */
+	UFUNCTION(BlueprintCallable, Category = "Empath|PlayerInput")
+	void TickUpdateInputAxisEvents();
+
+
 
 private:
 	/** Whether this character is currently dead. */
@@ -374,24 +564,73 @@ private:
 	// ---------------------------------------------------------
 	//	Hands
 
-	/** The right hand actor class of the character. */
+	/** The right hand actor class of this character. */
 	UPROPERTY(Category = "Empath|Hand", EditDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<AEmpathHandActor> RightHandClass;
 
-	/** The right hand actor class of the character. */
+	/** The right hand actor class of this character. */
 	UPROPERTY(Category = "Empath|Hand", EditDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<AEmpathHandActor> LeftHandClass;
 
 	/** Reference to the right hand actor. */
 	UPROPERTY(Category = "Empath|Hand", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	AEmpathHandActor* RightHandReference;
+	AEmpathHandActor* RightHandActor;
 
 	/** Reference to the left hand actor. */
 	UPROPERTY(Category = "Empath|Hand", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	AEmpathHandActor* LeftHandReference;
+	AEmpathHandActor* LeftHandActor;
+
+	// ---------------------------------------------------------
+	//	Teleportation
+
+	/** The teleport marker class of this character. */
+	UPROPERTY(Category = "Empath|Teleportation", EditDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<AEmpathTeleportMarker> TeleportMarkerClass;
+
+	/** Reference to the teleport marker. */
+	UPROPERTY(Category = "Empath|Teleportation", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	AEmpathTeleportMarker* TeleportMarker;
 
 	/** The capsule component being used for damage collision. */
-	UPROPERTY(Category = Character, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(Category = EmpathPlayerCharacter, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	UCapsuleComponent* DamageCapsule;
 
+	// ---------------------------------------------------------
+	//	Input
+
+	// Dashing
+	/** Current value of our Dash input axis. X is Right, Y is Up. -X is Left, -Y is down. */
+	UPROPERTY(Category = "Empath|PlayerInput", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	FVector2D MoveInputAxis;
+	void MoveAxisUpDown(float AxisValue);
+	void MoveAxisRightLeft(float AxisValue);
+
+	/** Whether the Dash input axis is considered "pressed." */
+	UPROPERTY(Category = "Empath|PlayerInput", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	bool bMovePressed;
+
+
+	// Teleportation
+	/** Current value of our Teleport input axis. X is Right, Y is Up. -X is Left, -Y is down. */
+	UPROPERTY(Category = "Empath|PlayerInput", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	FVector2D TeleportInputAxis;
+	void TeleportAxisUpDown(float AxisValue);
+	void TeleportAxisRightLeft(float AxisValue);
+
+	/** Whether the Teleport input axis is considered "pressed." */
+	UPROPERTY(Category = "Empath|PlayerInput", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	bool bTeleportPressed;
+
+
+	// Alt movement
+
+	/** Whether the Alt Movement key is pressed. */
+	UPROPERTY(Category = "Empath|PlayerInput", BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	bool bAltMovementPressed;
+
+	/** Called when the Alt Movement key is pressed. */
+	void OnAltMovementPressed();
+
+	/** Called when the Alt Movement key is released. */
+	void OnAltMovementReleased();
 };

@@ -25,7 +25,7 @@ static TAutoConsoleVariable<int32> CVarEmpathNavRecoveryDrawDebug(
 	TEXT("Empath.NavRecoveryDrawDebug"),
 	0,
 	TEXT("Whether to enable nav recovery debug.\n")
-	TEXT("0: Disable, 1: Enabled"),
+	TEXT("0: Disabled, 1: Enabled"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 static const auto NavRecoveryDrawDebug = IConsoleManager::Get().FindConsoleVariable(TEXT("Empath.NavRecoveryDrawDebug"));
 
@@ -200,59 +200,10 @@ void AEmpathCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// We check for the get up from ragdoll signal on tick because timers execute post-physics, 
-	// and the component repositioning during getup causes visual pops
-	if (bDeferredGetUpFromRagdoll)
-	{
-		bDeferredGetUpFromRagdoll = false;
-		StartRecoverFromRagdoll();
-	}
+	TickUpdateRagdollRecoveryState();
 
-	// Navmesh recovery
-	if (IsFailingNavigation() && !bDead)
-	{
-		UWorld* World = GetWorld();
-		if (World)
-		{
-			const FVector Location = GetActorLocation();
-			const float TimeSinceStart = World->TimeSince(NavRecoveryStartTime);
-			const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
+	TickUpdateNavMeshRecoveryState(DeltaTime);
 
-			if (TimeSinceStart >= CurrentSettings.MaxRecoveryAttemptTime)
-			{
-				OnNavMeshRecoveryFailed(Location, TimeSinceStart);
-			}
-			else
-			{
-				// Require default movement mode.
-				// Otherwise, we usually can't path, or jumping would look bad.
-				if (ExpectsSuccessfulPathInCurrentState())
-				{
-					const FVector Destination = GetNavRecoveryDestination();
-
-					// Destination is zero if not set yet by Behavior Tree.
-					if (!Destination.IsZero())
-					{
-						OnTickNavMeshRecovery(CurrentSettings, DeltaTime, Location, Destination);
-					}
-					else
-					{
-						// Allow slight delay for BT to set the location.
-						if (TimeSinceStart > 0.20f)
-						{
-							UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Tick recovery has no destination set from location [%s]"), *GetNameSafe(this), *Location.ToString());
-							NAVRECOVERY_LOC(Location, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Red);
-							ReceiveFailedToFindRecoveryDestination(DeltaTime, Location, TimeSinceStart);
-						}
-					}
-				}
-				else
-				{
-					UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Tick recovery skipped from location [%s] because we are in a non-default movement mode (%d)"), *GetNameSafe(this), *Location.ToString(), (int32)GetCharacterMovement()->MovementMode);
-				}
-			}
-		}
-	}
 }
 
 float AEmpathCharacter::GetDistanceToVR(const AActor* OtherActor) const
@@ -1543,4 +1494,64 @@ bool AEmpathCharacter::GetBestTeleportLocation_Implementation(FHitResult Telepor
 	OutTeleportLocation = FVector::ZeroVector;
 	return false;
 
+}
+
+void AEmpathCharacter::TickUpdateNavMeshRecoveryState(float DeltaTime)
+{
+	// Navmesh recovery
+	if (IsFailingNavigation() && !bDead)
+	{
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			const FVector Location = GetActorLocation();
+			const float TimeSinceStart = World->TimeSince(NavRecoveryStartTime);
+			const FEmpathNavRecoverySettings& CurrentSettings = GetCurrentNavRecoverySettings();
+
+			if (TimeSinceStart >= CurrentSettings.MaxRecoveryAttemptTime)
+			{
+				OnNavMeshRecoveryFailed(Location, TimeSinceStart);
+			}
+			else
+			{
+				// Require default movement mode.
+				// Otherwise, we usually can't path, or jumping would look bad.
+				if (ExpectsSuccessfulPathInCurrentState())
+				{
+					const FVector Destination = GetNavRecoveryDestination();
+
+					// Destination is zero if not set yet by Behavior Tree.
+					if (!Destination.IsZero())
+					{
+						OnTickNavMeshRecovery(CurrentSettings, DeltaTime, Location, Destination);
+					}
+					else
+					{
+						// Allow slight delay for BT to set the location.
+						if (TimeSinceStart > 0.20f)
+						{
+							UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Tick recovery has no destination set from location [%s]"), *GetNameSafe(this), *Location.ToString());
+							NAVRECOVERY_LOC(Location, GetCapsuleComponent()->GetScaledCapsuleRadius(), FColor::Red);
+							ReceiveFailedToFindRecoveryDestination(DeltaTime, Location, TimeSinceStart);
+						}
+					}
+				}
+				else
+				{
+					UE_LOG(LogNavRecovery, VeryVerbose, TEXT("%s: Tick recovery skipped from location [%s] because we are in a non-default movement mode (%d)"), *GetNameSafe(this), *Location.ToString(), (int32)GetCharacterMovement()->MovementMode);
+				}
+			}
+		}
+	}
+}
+
+void AEmpathCharacter::TickUpdateRagdollRecoveryState()
+{
+	// We check for the get up from ragdoll signal on tick because timers execute post-physics, 
+	// and the component repositioning during getup causes visual pops
+	if (bDeferredGetUpFromRagdoll)
+	{
+		bDeferredGetUpFromRagdoll = false;
+		StartRecoverFromRagdoll();
+	}
 }
