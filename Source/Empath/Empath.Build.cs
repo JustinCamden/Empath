@@ -8,7 +8,7 @@ public class Empath : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "AIModule", "VRExpansionPlugin" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "AIModule", "VRExpansionPlugin", "HeadMountedDisplay" });
 
 
         PrivateDependencyModuleNames.AddRange(new string[] {  });

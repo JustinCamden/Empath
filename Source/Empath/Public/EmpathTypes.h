@@ -338,3 +338,17 @@ struct FEmpathTeleportTraceSettings
 
 	}
 };
+
+UENUM(BlueprintType)
+enum class EEmpathOrientation : uint8
+{
+	Hand,
+	Head
+};
+
+UENUM(BlueprintType)
+enum class EEmpathLocomotionMode : uint8
+{
+	Dash,
+	Walk
+};

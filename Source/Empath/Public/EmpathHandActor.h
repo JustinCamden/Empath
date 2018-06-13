@@ -34,7 +34,7 @@ public:
 	/** Call to register this hand with the other hand and the owning player character. */
 	UFUNCTION(BlueprintCallable, Category = "Empath|Hand")
 	void RegisterHand(AEmpathHandActor* InOtherHand, 
-		AEmpathPlayerCharacter* InOwnCharacter,
+		AEmpathPlayerCharacter* InOwningCharacter,
 		USceneComponent* InFollowedComponent);
 
 	/** The maximum distance from the component we are following before we are officially lost. */

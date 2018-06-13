@@ -25,3 +25,12 @@ void AEmpathTeleportMarker::Tick(float DeltaTime)
 
 }
 
+void AEmpathTeleportMarker::UpdateMarkerLocation_Implementation(FVector TeleportLocation, 
+	bool bLocationValid, 
+	AEmpathCharacter* TargetedTeleportCharacter, 
+	AEmpathTeleportBeacon* TargetedTeleportBeacon)
+{
+	// For now, just set our location to the teleport location
+	SetActorLocation(TeleportLocation);
+	return;
+}
