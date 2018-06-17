@@ -24,30 +24,30 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	/** Called when tracing teleport to update the location of the teleport marker. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Empath|Teleportation")
+	UFUNCTION(BlueprintNativeEvent, Category = EmpathTeleportMarker)
 	void UpdateMarkerLocation(FVector TeleportLocation, 
 		bool bLocationValid, 
 		AEmpathCharacter* TargetedTeleportCharacter, 
 		AEmpathTeleportBeacon* TargetedTeleportBeacon);
 
 	/** Called by the controlling Character when the marker is made visible. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportion")
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathTeleportMarker)
 	void OnShowTeleportMarker();
 
 	/** Called by the controlling Character when the marker is made invisible. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportion")
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathTeleportMarker)
 	void OnHideTeleportMarker();
 
 	/** Called by the controlling Character when teleport location becomes valid. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportion")
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathTeleportMarker)
 	void OnTeleportLocationFound();
 
 	/** Called by the controlling Character when teleport location becomes invalid. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportion")
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathTeleportMarker)
 	void OnTeleportLocationLost();
 
 	/** Reference to the player character controlling this teleport marker. */
-	UPROPERTY(BlueprintReadOnly, Category = "Empath|TeleportMarker")
+	UPROPERTY(BlueprintReadOnly, Category = EmpathTeleportMarker)
 	AEmpathPlayerCharacter * OwningCharacter;
 
 protected:

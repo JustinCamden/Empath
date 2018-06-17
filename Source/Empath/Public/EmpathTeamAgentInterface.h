@@ -7,7 +7,7 @@
 #include "EmpathTypes.h"
 #include "EmpathTeamAgentInterface.generated.h"
 
-/** Interface used so characters and objects can be placed on teams and recognize teamates and enemies. */
+/** Interface used so characters and objects can be placed on teams and recognize teammates and enemies. */
 UINTERFACE()
 class UEmpathTeamAgentInterface : public UGenericTeamAgentInterface
 {
@@ -19,7 +19,7 @@ class EMPATH_API IEmpathTeamAgentInterface : public IGenericTeamAgentInterface
 	GENERATED_IINTERFACE_BODY()
 
 	/** Returns the team number of the actor. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Team")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = EmpathTeamAgentInterface)
 	EEmpathTeam GetTeamNum() const;
 
 	virtual FGenericTeamId GetGenericTeamId() const override;

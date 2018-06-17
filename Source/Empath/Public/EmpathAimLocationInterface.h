@@ -19,7 +19,9 @@ class UEmpathAimLocationInterface : public UInterface
 class EMPATH_API IEmpathAimLocationInterface
 {
 	GENERATED_IINTERFACE_BODY()
+
+public:
 	/** Returns the aim location of the actor. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Utility")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = EmpathAimLocationInterface)
 	FVector GetCustomAimLocationOnActor(FVector LookOrigin, FVector LookDirection) const;
 };

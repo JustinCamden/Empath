@@ -6,6 +6,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "EmpathGameModeBase.generated.h"
 
+class AEmpathAIManager;
+
 /**
  * 
  */
@@ -17,8 +19,8 @@ public:
 	AEmpathGameModeBase(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	/** Gets the world AI Manager */
-	UFUNCTION(Category = "Empath|AI", BlueprintCallable, BlueprintPure)
-	class AEmpathAIManager* GetAIManager() const { return AIManager; }
+	UFUNCTION(Category = EmpathGameMode, BlueprintCallable, BlueprintPure)
+	AEmpathAIManager* GetAIManager() const { return AIManager; }
 
 	virtual void BeginPlay() override;
 private:

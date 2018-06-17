@@ -19,15 +19,15 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	/** Called when targeted while tracing teleport. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathTeleportBeacon)
 	void OnTargetedForTeleport();
 
 	/** Called when un-targeted while tracing teleport. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|Teleportation")
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathTeleportBeacon)
 	void OnReleasedForTeleport();
 
 	/** Gets the best teleport location for this actor. Returns false if there is no valid location or if teleporting to this actor is disabled. */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|Teleportation")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = EmpathTeleportBeacon)
 	bool GetBestTeleportLocation(FHitResult TeleportHit,
 		FVector TeleportOrigin,
 		FVector& OutTeleportLocation,

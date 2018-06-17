@@ -22,3 +22,5 @@ const FName FEmpathCollisionProfiles::PawnIgnoreAll(TEXT("PawnIgnoreAll"));
 const FName FEmpathCollisionProfiles::DamageCollision(TEXT("DamageCollision"));
 const FName FEmpathCollisionProfiles::HandCollision(TEXT("HandCollision"));
 const FName FEmpathCollisionProfiles::NoCollision(TEXT("NoCollision"));
+const FName FEmpathCollisionProfiles::GripCollision(TEXT("GripCollision"));
+const FName FEmpathCollisionProfiles::OverlapAllDynamic(TEXT("OverlapAllDynamic"));

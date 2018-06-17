@@ -39,11 +39,11 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 	/** Editor-only component to visualize the link start point. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathNavLinkProxy)
 	UBoxComponent* StartEditorComp;
 
 	/** Editor-only component to visualize the link end point. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathNavLinkProxy)
 	UBoxComponent* EndEditorComp;
 #endif
 

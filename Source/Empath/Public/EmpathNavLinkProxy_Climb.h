@@ -19,7 +19,7 @@ public:
 	AEmpathNavLinkProxy_Climb(const FObjectInitializer& ObjectInitializer);
 
 	/** This should be aligned with the ledge, such that it points AWAY from the ledge */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Odin")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathNavLinkProxy)
 	UArrowComponent* LedgeAlignmentComponent;
 	
 	

@@ -67,31 +67,31 @@ public:
 	//	Getters and setters
 
 	/** Gets the world AI Manager. */
-	UFUNCTION(Category = "Empath|AI", BlueprintCallable, BlueprintPure)
+	UFUNCTION(Category = EmpathAIController, BlueprintCallable, BlueprintPure)
 	AEmpathAIManager* GetAIManager() const { return AIManager; }
 
 	/** Returns the controlled Empath Character. */
-	UFUNCTION(Category = "Empath|AI", BlueprintCallable, BlueprintPure)
+	UFUNCTION(Category = EmpathAIController, BlueprintCallable, BlueprintPure)
 	AEmpathCharacter* GetEmpathChar() const;
 
 	/** Returns whether the current attack target's location has been lost i.e. no AI can see it. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool IsTargetLost() const;
 
 	/** Returns whether we are facing the attack target. */
-	UFUNCTION(BlueprintCallable, Category = "AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool IsFacingTarget(FVector TargetLoc, float AngleToleranceDeg = 10.f) const;
 
 	/** Sets the attack target. */
-	UFUNCTION(Category = "Empath|AI", BlueprintCallable)
+	UFUNCTION(Category = EmpathAIController, BlueprintCallable)
 	void SetAttackTarget(AActor* NewTarget);
 
 	/** Returns the AI's current attack target. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathAIController)
 	AActor* GetAttackTarget() const;
 
 	/** Sets the AI's current defend target. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetDefendTarget(AActor* NewDefendTarget);
 
 	/** Returns the AI's current defend target. */
@@ -99,113 +99,113 @@ public:
 	AActor* GetDefendTarget() const;
 
 	/** Sets the AI's current flee target. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetFleeTarget(AActor* NewFleeTarget);
 
 	/** Returns the AI's current flee target. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathAIController)
 	AActor* GetFleeTarget() const;
 
 	/** Sets the target visibility and updates the AI manager if necessary. */
 	void SetCanSeeTarget(bool bNewCanSeeTarget);
 
 	/** Returns whether we can see the current attack target in the Blackboard. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathAIController)
 	bool CanSeeTarget() const;
 
 	/** Gets the eyes viewpoint for vision. Uses the named socket or skeletal bone as named by our Vision Bone name. */
 	virtual void GetActorEyesViewPoint(FVector& out_Location, FRotator& out_Rotation) const override;
 
 	/** Set the goal location for the most recent move request. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetGoalLocation(FVector GoalLocation);
 
 	/** Get the goal location for the most recent move request. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathAIController)
 	FVector GetGoalLocation() const;
 
 	/** Sets whether the AI controller is passive. */
-	UFUNCTION(Category = "Empath|AI", BlueprintCallable)
+	UFUNCTION(Category = EmpathAIController, BlueprintCallable)
 	void SetIsPassive(bool bNewPassive);
 
 	/** Returns whether the AI controller is passive. */
-	UFUNCTION(Category = "Empath|AI", BlueprintCallable, BlueprintPure)
+	UFUNCTION(Category = EmpathAIController, BlueprintCallable, BlueprintPure)
 	bool IsPassive() const;
 
 	/** Returns the maximum distance to the target fixed for effective range and radius of the target, set in the Empath Character. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	float GetMaxAttackRange() const;
 
 	/** Returns the maximum distance to the target fixed for effective range and radius of the target, set in the Empath Character. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	float GetMinAttackRange() const;
 
 	/** Returns distance to "surface" of target -- target radius is factored in. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	float GetRangeToTarget() const;
 
 	/** Returns true if this AI should move. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool WantsToReposition(float DesiredMaxAttackRange, float DesiredMinAttackRange) const;
 
 	/** Returns the point to aim at (for shooting, etc). */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	virtual FVector GetAimLocation() const;
 
 	/** Sets a custom override aim location. Otherwise, will be calculated the normal way. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetCustomAimLocation(FVector AimLocation);
 
 	/** Clears the custom aim location. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void ClearCustomAimLocation();
 
-	/** Returns the currently set custom aim location of this actor and wether it is currently using a custom aim location */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	/** Returns the currently set custom aim location of this actor and whether it is currently using a custom aim location */
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool IsUsingCustomAimLocation() const {return bUseCustomAimLocation;}
 
 	/** Returns whether the controlled character is dead. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool IsDead() const;
 
 	/** Returns number of AIs in the given radius, excluding this one. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	int32 GetNumAIsNearby(float Radius) const;
 
 	/** Gets whether this AI is currently running the behavior tree. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool IsAIRunning() const;
 
 	/** Gets whether the attack target is teleporting. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool IsTargetTeleporting() const;
 
 	/** Gets the time since the last time we saw the target teleport. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	float GetTimeSinceLastSawAttackTargetTeleport() const;
 
 	/** Returns true if this AI is currently moving on a custom nav link (climb, jump, etc), or false otherwise. */
-	UFUNCTION(BlueprintCallable, Category = "Empath}AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool IsUsingCustomNavLink() const;
 
 	/** Returns true if the upcoming path contains a jump. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool CurrentPathHasUpcomingJumpLink() const;
 
 	/** Get the goal location for the most recent nav recovery request. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	FVector GetNavRecoveryDestination() const;
 
 	/** Sets the goal location nav recovery. Normally set through EQS queries but can be changed. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetNavRecoveryDestination(FVector Destination);
 
 	/** Sets the current nav recovery search radius. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetNavRecoverySearchRadii(float InnerRadius, float OuterRadius);
 
 	/** Returns the current nav recovery search radius. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void GetNavRecoverySearchRadii(float& InnerRadius, float& OuterRadius) const;
 
 	// ---------------------------------------------------------
@@ -214,23 +214,23 @@ public:
 	void OnLostPlayerTarget();
 
 	/** Called when the player target is lost. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Lost Player Target"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Lost Player Target"))
 	void ReceiveLostPlayerTarget();
 
 	void OnSearchForPlayerStarted();
 
 	/** Called when this AI should begin searching for the target. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Search For Player Started"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Search For Player Started"))
 	void ReceiveSearchForPlayerStarted();
 
 	void OnTargetSeenForFirstTime();
 
 	/** Triggered when an AI has seen its target for the very first time and this AI is not passive. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Target Seen For First Time"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Target Seen For First Time"))
 	void ReceiveTargetSeenForFirstTime();
 
 	/** Triggered when an AI found a player whose location was previously unknown. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Target Spotted"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Target Spotted"))
 	void ReceiveTargetSpotted();
 
 	/** Override that updates the Blackboard with our goal location when successful, and that binds OnBump to our character's capsule collisions. */
@@ -238,40 +238,40 @@ public:
 	FNavPathSharedPtr* OutPath) override;
 
 	/** Called when this AI has made a successful move request. */
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Empath|AI", meta = (DisplayName = "On Target Spotted"))
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = EmpathAIController, meta = (DisplayName = "On Target Spotted"))
 	void ReceiveMoveTo(FVector GoalLocation);
 
 	/** Override that unbinds the capsule bump request */
 	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
 
 	/** Called when a new attack target is selected */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On New Attack Target"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On New Attack Target"))
 	void ReceiveNewAttackTarget(AActor* OldTarget, AActor* NewTarget);
 
 	/** Called when the current attack target dies */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Attack Target Died"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Attack Target Died"))
 	void ReceiveAttackTargetDied(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the attack target teleports. */
 	void OnAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
 
 	/** Called when the attack target teleports. */
-	UFUNCTION(Category = "Empath|AI", BlueprintImplementableEvent, meta = (DisplayName = "On Attack Target Teleported"))
+	UFUNCTION(Category = EmpathAIController, BlueprintImplementableEvent, meta = (DisplayName = "On Attack Target Teleported"))
 	void ReceiveAttackTargetTeleported(AActor* Target, FVector Origin, FVector Destination);
 
 	/** Called when the controlled character dies. */
 	void OnCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the controlled character dies. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Character Death"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Character Death"))
 	void ReceiveCharacterDeath(FHitResult const& KillingHitInfo, FVector KillingHitImpulseDir, const AController* DeathInstigator, const AActor* DeathCauser, const UDamageType* DeathDamageType);
 
 	/** Called when the controlled character becomes stunned. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Character Stunned"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Character Stunned"))
 	void ReceiveCharacterStunned(const AController* StunInstigator, const AActor* StunCauser, const float StunDuration);
 
 	/** Called when the controlled character is no longer stunned. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Empath|AI", meta = (DisplayName = "On Character Stun End"))
+	UFUNCTION(BlueprintImplementableEvent, Category = EmpathAIController, meta = (DisplayName = "On Character Stun End"))
 	void ReceiveCharacterStunEnd();
 
 
@@ -279,7 +279,7 @@ public:
 	//	State flow / Commands
 
 	/** Updates what targets are visible and which is our current attack target */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void UpdateTargetingAndVision();
 
 	/** Alerts us that the target has been spotted, and updates the AI manager as to its location. */
@@ -296,32 +296,32 @@ public:
 	* Starts a climb action.
 	* @param LedgeTransform is the transform of the very edge of the ledge, facing the direction the character will face when climbing.
 	*/
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = EmpathAIController)
 	void ClimbTo(FTransform const& LedgeTransform);
 
 	/** Signals the end of a climb segment and resumes normal navigation. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void FinishClimb();
 
 	/**
 	* Starts a jump action.
 	* @param Arc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
 	*/
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "AI")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = EmpathAIController)
 	void JumpTo(FTransform const& Destination, float Arc = 0.5f, const AActor* JumpFromActor = nullptr);
 
 	/**
 	* Does the actual launch of the AI's character. Returns a boolean indicating whether the jump is successful, and if so fills in the predicted ascent/descent times.
 	* @param Arc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool DoJumpLaunch(FTransform const& Destination, float Arc, const AActor* JumpFromActor, float& AscendingTime, float& DescendingTime);
 
 	/**
 	* Does the jump launch, assuming the velocity has already been computed with SuggestProjectileVelocity_CustomArc(). Mainly for performance to avoid doing that twice.
 	* @param Arc	In range (0..1). 0 is straight up, 1 is straight at target, linear in between. 0.5 would give 45 deg arc if Start and End were at same height.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool DoJumpLaunchWithPrecomputedVelocity(FTransform const& Destination, FVector LaunchVelocity, float Arc, const AActor* JumpFromActor, float& AscendingTime, float& DescendingTime);
 
 	/* 
@@ -329,30 +329,30 @@ public:
 	* Returns false if the upcoming path contains no jump link. 
 	* Intentionally impure for efficiency. 
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool GetUpcomingJumpLinkAnimInfo(float& PathDistToJumpLink, float& EntryAngle, float& JumpDistance, float& PathDistAfterJumpLink, float& ExitAngle);
 
 	/** Gets the next jump link in the path. */
 	AEmpathNavLinkProxy_Jump* GetUpcomingJumpLink() const;
 
 	/** Called when the AI jumps to a location. */
-	UPROPERTY(BlueprintAssignable, Category = "Empath|AI")
+	UPROPERTY(BlueprintAssignable, Category = EmpathAIController)
 	FOnAIJumpToDelegate OnAIJumpTo;
 
 	/** Exposes pausing movement along the path. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void PausePathFollowing();
 
 	/** Exposes resuming movement along the path. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void ResumePathFollowing();
 
 	/** Asks this AI to move. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void RequestReposition() { bShouldReposition = true; };
 
 	/** Whether this AI should automatically claim navlinks when moving. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathAIController)
 	bool bClaimNavLinksOnMove;
 
 	/** Claims all nav links on the current path, prohibiting their use by other AIs. */
@@ -376,35 +376,35 @@ public:
 	//	Behavior modes
 
 	/** Tells the AIs behavior to search and destroy. Should be default behavior for most AIs. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetBehaviorModeSearchAndDestroy(AActor* InitialAttackTarget);
 
 	/** Tells the AIs behavior to defend the defend target, and pursue targets if they get too close. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetBehaviorModeDefend(AActor* DefendTarget, float GuardRadius = 500.0f, float PursuitRadius = 750.0f);
 
 	/** Tells the AIs behavior to flee away from the flee target. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	void SetBehaviorModeFlee(AActor* FleeTarget, float TargetRadius = 200.f);
 
 	/** Gets the current behavior mode. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathAIController)
 	EEmpathBehaviorMode GetBehaviorMode() const;
 
 	/** Gets the current guard radius for defense mode. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	float GetDefendGuardRadius() const;
 
 	/** Gets the current pursuit radius for defense mode. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	float GetDefendPursuitRadius() const;
 
 	/** Gets the radius of the flee target. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	float GetFleeTargetRadius() const;
 
 	/** Returns whether we want to engage our attack target, depending on whether we can see it and what behavior mode we are in. */
-	UFUNCTION(BlueprintCallable, Category = "Empath|AI")
+	UFUNCTION(BlueprintCallable, Category = EmpathAIController)
 	bool WantsToEngageAttackTarget() const;
 
 protected:
@@ -413,26 +413,26 @@ protected:
 	//	TeamAgent Interface
 
 	/** The team of this actor. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Empath|AI")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = EmpathAIController)
 		EEmpathTeam Team;
 
 	// ---------------------------------------------------------
 	//	Vision variables
 
 	/** Angle of our forward vision. Unlimited by range. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI", meta = (Units = deg))
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController, meta = (Units = deg))
 	float ForwardVisionAngle;
 
 	/** Angle of our peripheral vision. Limited by range Peripheral Vision Range, */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI", meta = (Units = deg))
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController, meta = (Units = deg))
 	float PeripheralVisionAngle;
 
 	/** Range of our peripheral vision.*/
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	float PeripheralVisionDistance;
 
 	/** Range at which we will automatically see targets in line of sight. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	float AutoSeeDistance;
 
 	///** Whether we should draw debug vision cones when updating vision. */
@@ -447,47 +447,47 @@ protected:
 	//	Target selection variables
 
 	/** Target selection score curve for distance. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	UCurveFloat* TargetSelectionDistScoreCurve;
 
 	/** Target selection distance score weight. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	float DistScoreWeight;
 
 	/** Target selection score curve for angle. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	UCurveFloat* TargetSelectionAngleScoreCurve;
 
 	/** Target selection angle score weight. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	float AngleScoreWeight;
 
 	/** Target selection preferred target weight. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	float TargetPrefScoreWeight;
 
 	/** Target selection current target weight. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	float CurrentTargetPreferenceWeight;
 
 	/** Target selection ratio AIs target target weight. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	float TargetingRatioBonusScoreWeight;
 
 	/** If true, this AI can target other targets besides the player. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|AI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathAIController)
 	bool bCanTargetSecondaryTargets;
 
 	/** If true, this AI will not target the player*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|AI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathAIController)
 	bool bIgnorePlayer;
 
 	/** If true, this AI will skip normal target selection checks and always target the player. Overrides Ignore Player. Useful for optimizing AI that will only encounter the player */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|AI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathAIController)
 	bool bAutoTargetPlayer;
 
 	/** If true, this AI will skip vision cone checks for its target. Useful for optimizing AI that should not be ambushable */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|AI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathAIController)
 	bool bIgnoreVisionCone;
 
 	/** Gets the selection score for a target based on the above weights. */
@@ -499,7 +499,7 @@ protected:
 	void UpdateVision(bool bTestImmediately = false);
 
 	/** Bone name to use for origin of vision traces. */
-	UPROPERTY(EditDefaultsOnly, Category = "Empath|AI")
+	UPROPERTY(EditDefaultsOnly, Category = EmpathAIController)
 	FName VisionBoneName;
 
 	/** Handle for our async vision trace. */
@@ -518,7 +518,7 @@ protected:
 	//	Obstacle avoidance
 
 	/** Whether we should detect bumping into other Empath Characters and ask them to move. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Empath|AI")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = EmpathAIController)
 	bool bDetectStuckAgainstOtherAI;
 
 	/** The last time we bumped another Empath Character's capsule. */
@@ -543,22 +543,22 @@ protected:
 		const FHitResult& Hit);
 
 	/** When this AI has been on a path for this long and not reached the destination, fail the path request so we try again. If set to 0, this feature is disabled. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|AI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathAIController)
 	float TimeOnPathUntilRepath;
 
 	/** The attack target radius of the currently set attack target. */
-	UPROPERTY(Category = "Empath|AI", BlueprintReadOnly)
+	UPROPERTY(Category = EmpathAIController, BlueprintReadOnly)
 	float CurrentAttackTargetRadius;
 
 	// ---------------------------------------------------------
 	//	Aiming
 
 	/** True to manually override aim location (via CustomAimLocation). False to determine aim location the normal way. */
-	UPROPERTY(BlueprintReadOnly, Category = "Empath|AI")
+	UPROPERTY(BlueprintReadOnly, Category = EmpathAIController)
 	bool bUseCustomAimLocation;
 
 	/** Aim location to use if bUseCustomAimLocation is true. Ignored otherwise. */
-	UPROPERTY(BlueprintReadOnly, Category = "Empath|AI")
+	UPROPERTY(BlueprintReadOnly, Category = EmpathAIController)
 	FVector CustomAimLocation;
 
 	// ---------------------------------------------------------

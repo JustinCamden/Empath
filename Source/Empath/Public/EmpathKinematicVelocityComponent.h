@@ -20,7 +20,7 @@ public:
 	UEmpathKinematicVelocityComponent();
 
 	/** How much time, in seconds, that we sample and average to get our current kinematic velocity. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Empath|Physics")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = EmpathKinematicVelocityComponent)
 		float SampleTime;
 
 	// Called every frame
@@ -29,67 +29,67 @@ public:
 	virtual void Deactivate() override;
 
 	/** Our location on the last frame, used to calculation our kinematic velocity. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetLastLocation() const { return LastLocation; }
 
 	/** Our rotation on the last frame, used to calculation our kinematic angular velocity. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FRotator GetLastRotation() const { return LastRotation.Rotator(); }
 
 	/** Our change in location since the last frame, used to calculation our kinematic velocity. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetDeltaLocation() const { return DeltaLocation; }
 
 	/** Our change in rotation since the last frame, used to calculation our kinematic angular velocity. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FRotator GetDeltaRotation() const { return DeltaRotation.Rotator(); }
 
 	/** The kinematic velocity of this component, averaged from all the recorded velocities within the same time. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetCurrentKinematicVelocity() const { return CurrentKinematicVelocity; }
 
-	/** The kinematic velocity of this component on the last frame, averaged from all the recorded velocites within the same time. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	/** The kinematic velocity of this component on the last frame, averaged from all the recorded velocities within the same time. Expressed in world space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetLastKinematicVelocity() const { return LastKinematicVelocity; }
 
 	/** The kinematic velocity of this component, calculated with respect to this frame only. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetCurrentFrameVelocity() const { return CurrentFrameVelocity; }
 
 	/** The last kinematic velocity of this component, calculated with respect to the last frame only. Expressed in world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetLastFrameVelocity() const { return LastFrameVelocity; }
 
-	/** The kinematic angular velocity of this component, averaged from all the recorded velocites within the same time. Expressed in Radians and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	/** The kinematic angular velocity of this component, averaged from all the recorded velocities within the same time. Expressed in Radians and world space. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetCurrentKinematicAngularVelocityRads() const { return CurrentKinematicAngularVelocity; }
 
 	/** The kinematic angular velocity of this component on the last frame, averaged from all the recorded velocites within the same time. Expressed in Radians and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetLastKinematicAngularVelocityRads() const { return LastKinematicAngularVelocity; }
 
 	/** The kinematic angular velocity of this component, calculated with respect to this frame only. Expressed in Radians and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetCurrentFrameAngularVelocityRads() const { return CurrentFrameAngularVelocity; }
 
 	/** The last kinematic angular velocity of this component, calculated with respect to the last frame only. Expressed in Radians and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetLastFrameAngularVelocityRads() const { return LastFrameAngularVelocity; }
 
 	/** The kinematic angular velocity of this component, averaged from all the recorded velocites within the same time. Expressed in degrees and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetCurrentKinematicAngularVelocity() const { return FVector::RadiansToDegrees(CurrentKinematicAngularVelocity); }
 
 	/** The kinematic angular velocity of this component on the last frame, averaged from all the recorded velocites within the same time. Expressed in degrees and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetLastKinematicAngularVelocity() const { return FVector::RadiansToDegrees(LastKinematicAngularVelocity); }
 
 	/** The kinematic angular velocity of this component, calculated with respect to this frame only. Expressed in degrees and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetCurrentFrameAngularVelocity() const { return FVector::RadiansToDegrees(CurrentFrameAngularVelocity); }
 
 	/** The last kinematic angular velocity of this component, calculated with respect to the last frame only. Expressed in degrees and world space. */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Empath|Physics")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = EmpathKinematicVelocityComponent)
 		FVector GetLastFrameAngularVelocity() const { return FVector::RadiansToDegrees(LastFrameAngularVelocity); }
 
 protected:

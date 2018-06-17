@@ -5,10 +5,13 @@
 #include "EmpathTypes.h"
 #include "EmpathKinematicVelocityComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "EmpathGripObjectInterface.h"
 
-FName AEmpathHandActor::SphereComponentName(TEXT("SphereComponent0"));
+FName AEmpathHandActor::BlockingCollisionName(TEXT("BlockingCollision"));
 FName AEmpathHandActor::KinematicVelocityComponentName(TEXT("KinematicVelocityComponent"));
 FName AEmpathHandActor::MeshComponentName(TEXT("MeshComponent"));
+FName AEmpathHandActor::GripCollisionName(TEXT("GripCollision"));
+FName AEmpathHandActor::MotionControllerRootName(TEXT("MotionControllerRoot"));
 
 // Sets default values
 AEmpathHandActor::AEmpathHandActor(const FObjectInitializer& ObjectInitializer)
@@ -19,28 +22,37 @@ AEmpathHandActor::AEmpathHandActor(const FObjectInitializer& ObjectInitializer)
 
 	// Initial variables
 	FollowComponentLostThreshold = 10.0f;
+	ControllerOffsetLocation = FVector(8.5f, 1.0f, -2.5f);
+	ControllerOffsetRotation = FRotator(-20.0f, -100.0f, -90.0f);
 
 	// Initialize components
 	// Root component
-	SphereComponent = CreateDefaultSubobject<USphereComponent>(SphereComponentName);
-	SphereComponent->InitSphereRadius(7.75f);
-	SphereComponent->SetCollisionProfileName(FEmpathCollisionProfiles::HandCollision);
-	SphereComponent->SetEnableGravity(false);
-	RootComponent = SphereComponent;
-
-	// Kinematic velocity
-	KinematicVelocityComponent = CreateDefaultSubobject<UEmpathKinematicVelocityComponent>(KinematicVelocityComponentName);
-	KinematicVelocityComponent->SetupAttachment(RootComponent);
-	// By default, we set the position to be the wrist of a right hand.
-	// To change to a left hand, simply invert the X
-	KinematicVelocityComponent->SetRelativeLocation(FVector(-6.5f, 1.0f, -2.0f));
+	MotionControllerRoot = CreateDefaultSubobject<USceneComponent>(MotionControllerRootName);
+	RootComponent = MotionControllerRoot;
 
 	// Mesh component
 	MeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(MeshComponentName);
 	MeshComponent->SetEnableGravity(false);
-	MeshComponent->SetupAttachment(RootComponent);
 	MeshComponent->SetCollisionProfileName(FEmpathCollisionProfiles::NoCollision);
+	MeshComponent->SetupAttachment(RootComponent);
 
+	// Blocking collision
+	BlockingCollision = CreateDefaultSubobject<USphereComponent>(BlockingCollisionName);
+	BlockingCollision->InitSphereRadius(7.75f);
+	BlockingCollision->SetCollisionProfileName(FEmpathCollisionProfiles::HandCollision);
+	BlockingCollision->SetEnableGravity(false);
+	BlockingCollision->SetupAttachment(MeshComponent);
+
+	// Grip collision
+	GripCollision = CreateDefaultSubobject<USphereComponent>(GripCollisionName);
+	GripCollision->InitSphereRadius(10.0f);
+	GripCollision->SetCollisionProfileName(FEmpathCollisionProfiles::OverlapAllDynamic);
+	GripCollision->SetEnableGravity(false);
+	GripCollision->SetupAttachment(MeshComponent);
+
+	// Kinematic velocity
+	KinematicVelocityComponent = CreateDefaultSubobject<UEmpathKinematicVelocityComponent>(KinematicVelocityComponentName);
+	KinematicVelocityComponent->SetupAttachment(MeshComponent);
 }
 
 // Called when the game starts or when spawned
@@ -62,11 +74,28 @@ void AEmpathHandActor::Tick(float DeltaTime)
 
 void AEmpathHandActor::RegisterHand(AEmpathHandActor* InOtherHand, 
 	AEmpathPlayerCharacter* InOwningCharacter,
-	USceneComponent* InFollowedComponent)
+	USceneComponent* InFollowedComponent,
+	EEmpathBinaryHand InOwningHand)
 {
+	// Cache inputted components
 	OtherHand = InOtherHand;
 	OwningCharacter = InOwningCharacter;
 	FollowedComponent = InFollowedComponent;
+	OwningHand = InOwningHand;
+
+	// Invite the actor's left / right scale if it's the left hand
+	if (OwningHand == EEmpathBinaryHand::Left)
+	{
+		FVector NewScale = GetActorScale3D();
+		NewScale.Y *= -1.0f;
+		SetActorScale3D(NewScale);
+	}
+
+	// We apply an initial controller offset to the mesh 
+	// to compensate for the offset of the tracking origin and the actual center
+	MeshComponent->SetRelativeLocationAndRotation(ControllerOffsetLocation, ControllerOffsetRotation);
+
+
 	OnHandRegistered();
 }
 
@@ -140,4 +169,69 @@ FVector AEmpathHandActor::GetTeleportOrigin_Implementation() const
 FVector AEmpathHandActor::GetTeleportDirection_Implementation(FVector LocalDirection) const
 {
 	return GetTransform().TransformVectorNoScale(LocalDirection.GetSafeNormal());
+}
+
+void AEmpathHandActor::GetBestGripCandidate(AActor*& GripActor, UPrimitiveComponent*& GripComponent, EEmpathGripType& GripResponse)
+{
+	// Get all overlapping components
+	TArray<UPrimitiveComponent*> OverlappingComponents;
+	GripCollision->GetOverlappingComponents(OverlappingComponents);
+
+	float BestDistance = 99999.0f;
+	bool bFoundActor = false;
+
+	// Check each overlapping component
+	for (UPrimitiveComponent* CurrComponent : OverlappingComponents)
+	{
+		AActor* CurrActor = CurrComponent->GetOwner();
+
+		// If this is a new actor, we need to check if it implements the interface, and if so, what the response is
+		if (CurrActor != GripActor)
+		{
+			if (CurrActor->GetOwner()->GetClass()->ImplementsInterface(UEmpathGripObjectInterface::StaticClass()))
+			{
+				EEmpathGripType CurrGripResponse = IEmpathGripObjectInterface::Execute_GetGripResponse(CurrActor, this, CurrComponent);
+				if (CurrGripResponse != EEmpathGripType::NoGrip)
+				{
+					// Check the distance to this component is smaller than the current best. If so, update the current best
+					float CurrDist = (CurrComponent->GetComponentLocation() - GripCollision->GetComponentLocation()).Size();
+					if (CurrDist < BestDistance)
+					{
+						GripActor = CurrActor;
+						GripComponent = CurrComponent;
+						BestDistance = CurrDist;
+						GripResponse = CurrGripResponse;
+					}
+				}
+			}
+		}
+
+		// If this is our current best actor, then we can skip checking if it implements the interface
+		else
+		{
+			EEmpathGripType CurrGripResponse = IEmpathGripObjectInterface::Execute_GetGripResponse(CurrActor, this, CurrComponent);
+			if (CurrGripResponse != EEmpathGripType::NoGrip)
+			{
+				float CurrDist = (CurrComponent->GetComponentLocation() - GripCollision->GetComponentLocation()).Size();
+				if (CurrDist < BestDistance)
+				{
+					GripComponent = CurrComponent;
+					BestDistance = CurrDist;
+					GripResponse = CurrGripResponse;
+				}
+			}
+		}
+	}
+	return;
+
+}
+
+void AEmpathHandActor::OnGripPressed_Implementation()
+{
+
+}
+
+void AEmpathHandActor::OnGripReleased_Implementation()
+{
+
 }

@@ -35,7 +35,7 @@ public:
 	float MaxFallingSpeed;
 
 	/** Scale incoming physics forces by this amount. 0 disables movement from physics forces. */
-	UPROPERTY(Category = "Empath|Physics", EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(Category = "Character Movement: Physics Interaction", EditAnywhere, BlueprintReadWrite)
 	float PhysicsForceScale;
 	
 private:

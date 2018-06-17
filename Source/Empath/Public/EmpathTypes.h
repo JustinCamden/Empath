@@ -47,6 +47,8 @@ struct FEmpathCollisionProfiles
 	static const FName DamageCollision;
 	static const FName HandCollision;
 	static const FName NoCollision;
+	static const FName GripCollision;
+	static const FName OverlapAllDynamic;
 };
 
 USTRUCT(BlueprintType)
@@ -351,4 +353,14 @@ enum class EEmpathLocomotionMode : uint8
 {
 	Dash,
 	Walk
+};
+
+UENUM(BlueprintType)
+enum class EEmpathGripType : uint8
+{
+	NoGrip,
+	Grip,
+	Move,
+	Pickup,
+	Climb
 };

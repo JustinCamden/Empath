@@ -120,6 +120,12 @@ void AEmpathPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* Ne
 	// Alt movement
 	NewInputComponent->BindAction("AltMovementMode", IE_Pressed, this, &AEmpathPlayerCharacter::OnAltMovementPressed);
 	NewInputComponent->BindAction("AltMovementMode", IE_Released, this, &AEmpathPlayerCharacter::OnAltMovementReleased);
+
+	// Grip
+	NewInputComponent->BindAction("GripRight", IE_Pressed, this, &AEmpathPlayerCharacter::OnGripRightPressed);
+	NewInputComponent->BindAction("GripRight", IE_Released, this, &AEmpathPlayerCharacter::OnGripRightReleased);
+	NewInputComponent->BindAction("GripLeft", IE_Pressed, this, &AEmpathPlayerCharacter::OnGripLeftPressed);
+	NewInputComponent->BindAction("GripLeft", IE_Released, this, &AEmpathPlayerCharacter::OnGripLeftReleased);
 }
 
 void AEmpathPlayerCharacter::BeginPlay()
@@ -157,11 +163,11 @@ void AEmpathPlayerCharacter::BeginPlay()
 	// Register hands
 	if (RightHandActor)
 	{
-		RightHandActor->RegisterHand(LeftHandActor, this, RightMotionController);
+		RightHandActor->RegisterHand(LeftHandActor, this, RightMotionController, EEmpathBinaryHand::Right);
 	}
 	if (LeftHandActor)
 	{
-		LeftHandActor->RegisterHand(RightHandActor, this, LeftMotionController);
+		LeftHandActor->RegisterHand(RightHandActor, this, LeftMotionController, EEmpathBinaryHand::Left);
 	}
 
 	// Spawn, attach, and hide the teleport marker
@@ -1106,14 +1112,22 @@ void AEmpathPlayerCharacter::TickUpdateTeleportState(float DeltaSeconds)
 
 	case EEmpathTeleportState::TracingTeleportLocation:
 	{
-		// Get the correct location and direction depending on the teleport hand
-		FVector TeleportOrigin;
-		FVector TeleportLocalDirection = FVector(1.0f, 0.0f, 0.0f);
-		GetTeleportTraceOriginAndDirection(TeleportOrigin, TeleportLocalDirection);
+		if (CanTeleport())
+		{
+			// Get the correct location and direction depending on the teleport hand
+			FVector TeleportOrigin;
+			FVector TeleportLocalDirection = FVector(1.0f, 0.0f, 0.0f);
+			GetTeleportTraceOriginAndDirection(TeleportOrigin, TeleportLocalDirection);
 
-		// Perform the actual trace
-		TraceTeleportLocation(TeleportOrigin, TeleportLocalDirection, TeleportMagnitude, TeleportTraceSettings, true);
-		OnTickTeleportStateUpdated();
+			// Perform the actual trace
+			TraceTeleportLocation(TeleportOrigin, TeleportLocalDirection, TeleportMagnitude, TeleportTraceSettings, true);
+			OnTickTeleportStateUpdated();
+		}
+		else
+		{
+			SetTeleportState(EEmpathTeleportState::NotTeleporting);
+		}
+
 
 		break;
 	}
@@ -1424,3 +1438,76 @@ FVector AEmpathPlayerCharacter::GetOrientedLocomotionAxis(const FVector2D InputA
 	ThreeDInputAxis.Z = 0.0f;
 	return ThreeDInputAxis;
 }
+
+void AEmpathPlayerCharacter::OnGripRightPressed()
+{
+	bGripRightPressed = true;
+	ReceiveGripRightPressed();
+}
+
+void AEmpathPlayerCharacter::OnGripRightReleased()
+{
+	bGripRightPressed = false;
+	ReceiveGripRightReleased();
+}
+
+void AEmpathPlayerCharacter::OnGripLeftPressed()
+{
+	bGripLeftPressed = true;
+	ReceiveGripLeftPressed();
+}
+
+void AEmpathPlayerCharacter::OnGripLeftReleased()
+{
+	bGripLeftPressed = false;
+	ReceiveGripLeftReleased();
+}
+
+void AEmpathPlayerCharacter::ReceiveGripRightPressed_Implementation()
+{
+	if (bGripEnabled)
+	{
+		RightHandActor->OnGripPressed();
+	}
+}
+
+void AEmpathPlayerCharacter::ReceiveGripRightReleased_Implementation()
+{
+	if (bGripEnabled)
+	{
+		RightHandActor->OnGripReleased();
+	}
+}
+
+void AEmpathPlayerCharacter::ReceiveGripLeftPressed_Implementation()
+{
+
+}
+
+void AEmpathPlayerCharacter::ReceiveGripLeftReleased_Implementation()
+{
+
+}
+
+void AEmpathPlayerCharacter::SetGripEnabled(const bool bNewEnabled)
+{
+	if (bNewEnabled != bGripEnabled)
+	{
+		bGripEnabled = bNewEnabled;
+
+		// Release any grips if we can no longer grip
+		if (!bGripEnabled)
+		{
+			if (RightHandActor->GripState != EEmpathGripType::NoGrip)
+			{
+				RightHandActor->OnGripReleased();
+			}
+			if (LeftHandActor->GripState != EEmpathGripType::NoGrip)
+			{
+				LeftHandActor->OnGripReleased();
+			}
+		}
+	}
+	return;
+}
+
