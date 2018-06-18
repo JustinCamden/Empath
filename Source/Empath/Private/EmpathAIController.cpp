@@ -799,7 +799,7 @@ void AEmpathAIController::UpdateVision(bool bTestImmediately)
 	{
 		// Check is the player is teleporting to a new location. If so, we can't see them
 		AEmpathPlayerCharacter* const PlayerTarget = Cast<AEmpathPlayerCharacter>(AttackTarget);
-		if (PlayerTarget && PlayerTarget->TeleportState == EEmpathTeleportState::TeleportingToLocation)
+		if (PlayerTarget && PlayerTarget->GetTeleportState() == EEmpathTeleportState::TeleportingToLocation)
 		{
 			SetCanSeeTarget(false);
 			return;

@@ -51,7 +51,7 @@ public:
 	/** Called after being registered with the owning player character and the other hand. */
 	UFUNCTION(BlueprintImplementableEvent, Category = EmpathHandActor)
 		void OnHandRegistered();
-
+	
 	// ---------------------------------------------------------
 	//	Follow component
 
@@ -79,7 +79,7 @@ public:
 	void MoveToFollowComponent();
 
 	// ---------------------------------------------------------
-	//	Teleportation
+	//	Gripping
 
 	/** Called by the owning character to determine the origin of the teleportation trace. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, BlueprintPure, Category = "EmpathHandActor|Teleportation")
@@ -89,31 +89,31 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, BlueprintPure, Category = "EmpathHandActor|Teleportation")
 	FVector GetTeleportDirection(FVector LocalDirection) const;
 
-
-	// ---------------------------------------------------------
-	//	General gripping
-
-	// The current grip state of this hand.
-	UPROPERTY(Category = EmpathHandActor, BlueprintReadOnly)
-	EEmpathGripType GripState;
+	/** Returns the current grip state of this hand actor. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "EmpathHandActor|Gripping")
+	EEmpathGripType GetGripState() const { return GripState; }
 
 	/** The object currently held by the hand. */
-	UPROPERTY(BlueprintReadOnly, Category = EmpathHandActor)
-		AActor* HeldObject;
+	UPROPERTY(BlueprintReadOnly, Category = "EmpathHandActor|Gripping")
+	AActor* HeldObject;
 
 	/** Gets the nearest Actor overlapping the grip collision. */
-	UFUNCTION(BlueprintCallable, Category = EmpathHandActor)
-		void GetBestGripCandidate(AActor*& GripActor, UPrimitiveComponent*& GripComponent, EEmpathGripType& GripResponse);
+	UFUNCTION(BlueprintCallable, Category = "EmpathHandActor|Gripping")
+	void GetBestGripCandidate(AActor*& GripActor, UPrimitiveComponent*& GripComponent, EEmpathGripType& GripResponse);
 
 	/** Called when the grip key is pressed and the Empath Character can grip. */
-	UFUNCTION(BlueprintNativeEvent, Category = EmpathHandActor)
-		void OnGripPressed();
+	void OnGripPressed();
+
+	/** Called when the grip key is pressed and the Empath Character can grip. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "EmpathHandActor|Gripping", meta = (DisplayName = "On Grip Pressed"))
+	void ReceiveGripPressed();
 
 	/** Called when the grip key is released, or when we are gripping something and grip is disabled. */
-	UFUNCTION(BlueprintNativeEvent, Category = EmpathHandActor)
-		void OnGripReleased();
+	void OnGripReleased();
 
-
+	/** Called when the grip key is released, or when we are gripping something and grip is disabled. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "EmpathHandActor|Gripping", meta = (DisplayName = "On Grip Released"))
+	void ReceiveGripReleased();
 
 
 	// ---------------------------------------------------------
@@ -127,6 +127,8 @@ public:
 	/** Called to deactivate spellcasting on this hand. */
 	UFUNCTION(BlueprintNativeEvent, Category = EmpathHandActor)
 	void DectivateCasting();
+
+	bool CheckForClimbGrip();
 
 protected:
 	// Called when the game starts or when spawned
@@ -160,7 +162,7 @@ private:
 
 	/** Reference to the owning Empath Player Character hand actor. */
 	UPROPERTY(Category = EmpathHandActor, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	AEmpathPlayerCharacter* OwningCharacter;
+	AEmpathPlayerCharacter* OwningPlayerCharacter;
 
 	/** Reference to the scene component we are following. */
 	UPROPERTY(Category = EmpathHandActor, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -173,10 +175,6 @@ private:
 	/** Whether we are currently separated from the component we are following. */
 	UPROPERTY(Category = EmpathHandActor, VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	bool bLostFollowComponent;
-	
-	/** Which hand this actor represents. Set when registered with the Empath Player Character. */
-	UPROPERTY(Category = EmpathHandActor, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	EEmpathBinaryHand OwningHand;
 
 	/** The initial location offset we apply for this hand (automatically inverted for the left hand). */
 	UPROPERTY(Category = EmpathHandActor, EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -185,5 +183,16 @@ private:
 	/** The initial rotation offset we apply for this hand (automatically inverted for the left hand). */
 	UPROPERTY(Category = EmpathHandActor, EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	FRotator ControllerOffsetRotation;
+
+	// ---------------------------------------------------------
+	//	State
+
+	/** Which hand this actor represents. Set when registered with the Empath Player Character. */
+	UPROPERTY(Category = EmpathHandActor, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	EEmpathBinaryHand OwningHand;
+
+	// The current grip state of this hand.
+	UPROPERTY(Category = EmpathHandActor, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	EEmpathGripType GripState;
 	
 };

@@ -27,7 +27,7 @@ class EMPATH_API IEmpathGripObjectInterface
 public:
 	/** Returns the grip response of this actor. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = EmpathGripObjectInterface)
-	EEmpathGripType GetGripResponse(AEmpathHandActor* GrippingHand, UPrimitiveComponent* GrippedComponent);
+	EEmpathGripType GetGripResponse(AEmpathHandActor* GrippingHand, UPrimitiveComponent* GrippedComponent) const;
 
 	/** Called when this actor is gripped. */
 	UFUNCTION(BlueprintNativeEvent, Category = EmpathGripObjectInterface)

@@ -82,11 +82,14 @@ AEmpathPlayerCharacter::AEmpathPlayerCharacter(const FObjectInitializer& ObjectI
 	DashTraceSettings.bTraceForEmpathChars = false;
 	TeleportMovementSpeed = 5000.0f;
 	TeleportRotationSpeed = 720.0f;
+	TeleportRotation180Speed = 1800.0f;
 	TeleportTimoutTime = 0.5f;
 	TeleportDistTolerance = 5.0f;
 	TeleportRotTolerance = 5.0f;
 	TeleportPivotStep = 60.0f;
+	LocomotionControlMode = EEmpathLocomotionControlMode::DefaultAndAltMovement;
 	DefaultLocomotionMode = EEmpathLocomotionMode::Dash;
+	InputAxisTappedThreshold = 0.6f;
 	DashOrientation = EEmpathOrientation::Head;
 	WalkOrientation = EEmpathOrientation::Hand;
 
@@ -200,6 +203,7 @@ void AEmpathPlayerCharacter::Tick(float DeltaTime)
 	TickUpdateInputAxisEvents();
 	TickUpdateTeleportState(DeltaTime);
 	TickUpdateWalk();
+	TickUpdateClimbing();
 }
 
 float AEmpathPlayerCharacter::GetDistanceToVR(AActor* OtherActor) const
@@ -863,75 +867,92 @@ void AEmpathPlayerCharacter::TeleportAxisRightLeft(float AxisValue)
 	TeleportInputAxis.Y = AxisValue;
 }
 
+void AEmpathPlayerCharacter::DashInDirection(const FVector2D Direction)
+{
+
+	// Get the best XY direction
+	// X and Y are swapped because in Unreal, Y is forward
+	FVector2D DashDirectionLocal = FVector2D::ZeroVector;
+
+	// Dashing left or right
+	if (FMath::Abs(Direction.Y) > FMath::Abs(Direction.X))
+	{
+		// Right
+		if (Direction.Y > 0.0f)
+		{
+			DashDirectionLocal.Y = 1.0f;
+		}
+
+		// Left
+		else
+		{
+			DashDirectionLocal.Y = -1.0f;
+		}
+	}
+
+	// Dashing forward or backward
+	else
+	{
+		// Forward
+		if (Direction.X > 0.0f)
+		{
+			DashDirectionLocal.X = 1.0f;
+		}
+		else
+		{
+			DashDirectionLocal.X = -1.0f;
+		}
+	}
+
+	// Update direction vector based on our camera's facing direction
+	FVector OrientedDashDirection = GetOrientedLocomotionAxis(DashDirectionLocal);
+
+	// Perform the trace
+	TraceTeleportLocation(GetVRLocation(), OrientedDashDirection, DashMagnitude, DashTraceSettings, false);
+
+	// Quality of life feature. If the first dash trace is invalid, we do a single, shorter trace, 
+	// to see if we can still move in the desired direction. This will cost us some performance,
+	// but will make life easier on the player if they're in a high space with ledges that they would
+	// otherwise dash off of
+	if (!bIsTeleportCurrLocValid)
+	{
+		TraceTeleportLocation(GetVRLocation(), OrientedDashDirection, DashMagnitude / 2.0f, DashTraceSettings, false);
+	}
+
+	if (bIsTeleportCurrLocValid)
+	{
+		OnDashSuccess();
+		TeleportToLocation(TeleportCurrentLocation);
+		}
+	else
+	{
+		OnDashFail();
+	}
+
+}
+
 void AEmpathPlayerCharacter::OnLocomotionPressed_Implementation()
 {
-	if (CurrentLocomotionMode == EEmpathLocomotionMode::Dash && CanDash())
+	if (LocomotionControlMode == EEmpathLocomotionControlMode::DefaultAndAltMovement 
+		&& CurrentLocomotionMode == EEmpathLocomotionMode::Dash 
+		&& CanDash())
 	{
-
-		// Get the best XY direction
-		// X and Y are swapped because in Unreal, Y is forward
-		FVector2D DashDirectionLocal = FVector2D::ZeroVector;
-
-		// Dashing left or right
-		if (FMath::Abs(LocomotionInputAxis.Y) > FMath::Abs(LocomotionInputAxis.X))
-		{
-			// Right
-			if (LocomotionInputAxis.Y > 0.0f)
-			{
-				DashDirectionLocal.Y = 1.0f;
-			}
-
-			// Left
-			else
-			{
-				DashDirectionLocal.Y = -1.0f;
-			}
-		}
-
-		// Dashing forward or backward
-		else
-		{
-			// Forward
-			if (LocomotionInputAxis.X > 0.0f)
-			{
-				DashDirectionLocal.X = 1.0f;
-			}
-			else
-			{
-				DashDirectionLocal.X = -1.0f;
-			}
-		}
-
-		// Update direction vector based on our camera's facing direction
-		FVector OrientedDashDirection = GetOrientedLocomotionAxis(DashDirectionLocal);
-
-		// Perform the trace
-		TraceTeleportLocation(GetVRLocation(), OrientedDashDirection, DashMagnitude, DashTraceSettings, false);
-
-		// Quality of life feature. If the first dash trace is invalid, we do a single, shorter trace, 
-		// to see if we can still move in the desired direction. This will cost us some performance,
-		// but will make life easier on the player if they're in a high space with ledges that they would
-		// otherwise dash off of
-		if (!bIsTeleportCurrLocValid)
-		{
-			TraceTeleportLocation(GetVRLocation(), OrientedDashDirection, DashMagnitude / 2.0f, DashTraceSettings, false);
-		}
-
-		if (bIsTeleportCurrLocValid)
-		{
-			OnDashSuccess();
-			TeleportToLocation(TeleportCurrentLocation);
-		}
-		else
-		{
-			OnDashFail();
-		}	
+		DashInDirection(LocomotionInputAxis);
 	}
+	
 }
 
 void AEmpathPlayerCharacter::OnLocomotionReleased_Implementation()
 {
 
+}
+
+void AEmpathPlayerCharacter::OnLocomotionTapped_Implementation()
+{
+	if (LocomotionControlMode == EEmpathLocomotionControlMode::PressToWalkTapToDash && CanDash())
+	{
+		DashInDirection(LocomotionInputAxis);
+	}
 }
 
 void AEmpathPlayerCharacter::OnTeleportPressed_Implementation()
@@ -947,13 +968,13 @@ void AEmpathPlayerCharacter::OnTeleportPressed_Implementation()
 			// Right
 			if (TeleportInputAxis.Y > 0.0f)
 			{
-				TeleportToPivot(TeleportPivotStep);
+				TeleportToRotation(TeleportPivotStep, TeleportRotationSpeed);
 			}
 
 			// Left
 			else
 			{
-				TeleportToPivot(TeleportPivotStep * -1.0f);
+				TeleportToRotation(TeleportPivotStep * -1.0f, TeleportRotationSpeed);
 			}
 		}
 	}
@@ -981,7 +1002,7 @@ void AEmpathPlayerCharacter::OnTeleportPressed_Implementation()
 		// Pivoting 180 degrees
 		else if (CanPivot())
 		{
-			TeleportToPivot(180.0f);
+			TeleportToRotation(180.0f, TeleportRotation180Speed);
 		}
 	}
 }
@@ -1040,6 +1061,7 @@ void AEmpathPlayerCharacter::TickUpdateInputAxisEvents()
 		if (!bLocomotionPressed)
 		{
 			bLocomotionPressed = true;
+			LocomotionLastPressedTime = GetWorld()->GetTimeSeconds();
 			OnLocomotionPressed();
 		}
 	}
@@ -1048,6 +1070,10 @@ void AEmpathPlayerCharacter::TickUpdateInputAxisEvents()
 		if (bLocomotionPressed)
 		{
 			bLocomotionPressed = false;
+			if (GetWorld()->TimeSince(LocomotionLastPressedTime) <= InputAxisTappedThreshold)
+			{
+				OnLocomotionTapped();
+			}
 			OnLocomotionReleased();
 		}
 	}
@@ -1078,17 +1104,41 @@ bool AEmpathPlayerCharacter::CanPivot_Implementation() const
 
 bool AEmpathPlayerCharacter::CanDash_Implementation() const
 {
-	return (bDashEnabled && !bDead && !bStunned && !IsTeleporting());
+	return (bDashEnabled && !bDead && !bStunned && !bClimbing && !IsTeleporting());
 }
 
 bool AEmpathPlayerCharacter::CanTeleport_Implementation() const
 {
-	return (bTeleportEnabled && !bDead && !bStunned && !IsTeleporting());
+	if (bTeleportEnabled && !bDead && !bStunned && !IsTeleporting())
+	{
+		// Check if our teleport hand is gripping an object
+		EEmpathGripType TeleportHandGripState = EEmpathGripType::NoGrip;
+		if (TeleportHand == EEmpathBinaryHand::Left)
+		{
+			if (LeftHandActor)
+			{
+				TeleportHandGripState = LeftHandActor->GetGripState();
+			}
+		}
+		else
+		{
+			if (RightHandActor)
+			{
+				TeleportHandGripState = RightHandActor->GetGripState();
+			}
+		}
+		// Only return true if we are either holding a pickup or not holding on object in the teleport hand
+		if (TeleportHandGripState == EEmpathGripType::NoGrip || TeleportHandGripState == EEmpathGripType::Pickup)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool AEmpathPlayerCharacter::CanWalk_Implementation() const
 {
-	return (bWalkEnabled && !bDead && !bStunned && !IsTeleporting());
+	return (bWalkEnabled && !bDead && !bStunned && !bClimbing && !IsTeleporting());
 }
 
 void AEmpathPlayerCharacter::TickUpdateHealthRegen(float DeltaTime)
@@ -1168,7 +1218,7 @@ void AEmpathPlayerCharacter::TickUpdateTeleportState(float DeltaSeconds)
 		float OldDeltaYaw = TeleportRemainingDeltaYaw;
 
 		// Get the current delta yaw to apply on this frame by interping the remaining delta towards 0 and finding the difference
-		TeleportRemainingDeltaYaw = FMath::FInterpConstantTo(TeleportRemainingDeltaYaw, 0.0f, DeltaSeconds, TeleportRotationSpeed);
+		TeleportRemainingDeltaYaw = FMath::FInterpConstantTo(TeleportRemainingDeltaYaw, 0.0f, DeltaSeconds, TeleportCurrentRotationSpeed);
 		float DeltaYawToApply = OldDeltaYaw - TeleportRemainingDeltaYaw;
 
 		// Ensure we did not overhsoot the target
@@ -1284,7 +1334,7 @@ void AEmpathPlayerCharacter::GetTeleportTraceOriginAndDirection(FVector& Origin,
 	}
 }
 
-void AEmpathPlayerCharacter::TeleportToPivot(float DeltaYaw)
+void AEmpathPlayerCharacter::TeleportToRotation(float DeltaYaw, float RotationSpeed)
 {
 	// Do nothing if we are already teleporting
 	if (IsTeleporting())
@@ -1295,6 +1345,13 @@ void AEmpathPlayerCharacter::TeleportToPivot(float DeltaYaw)
 	// Update delta yaw and teleport state
 	TeleportRemainingDeltaYaw = DeltaYaw;
 	SetTeleportState(EEmpathTeleportState::TeleportingToRotation);
+	TeleportCurrentRotationSpeed = RotationSpeed;
+
+	// Ensure we don't get stuck on 0 rotation
+	if (TeleportCurrentRotationSpeed < 1.0f)
+	{
+		TeleportCurrentRotationSpeed = TeleportRotationSpeed;
+	}
 
 	// Fire notifies
 	OnTeleportToRotation();
@@ -1372,7 +1429,8 @@ void AEmpathPlayerCharacter::TickUpdateWalk()
 	// Check for valid input
 	float MoveScale = LocomotionInputAxis.Size();
 	UVRCharacterMovementComponent* CMC = Cast<UVRCharacterMovementComponent>(GetMovementComponent());
-	if (CMC && CurrentLocomotionMode == EEmpathLocomotionMode::Walk && CanWalk() && MoveScale > InputAxisLocomotionWalkThreshold)
+	if (CMC && CanWalk() && MoveScale > InputAxisLocomotionWalkThreshold
+	&& (LocomotionControlMode == EEmpathLocomotionControlMode::PressToWalkTapToDash || (CurrentLocomotionMode == EEmpathLocomotionMode::Walk && LocomotionControlMode == EEmpathLocomotionControlMode::DefaultAndAltMovement)))
 	{
 		// Call notify if appropriate
 		if (!bWalking)
@@ -1481,12 +1539,18 @@ void AEmpathPlayerCharacter::ReceiveGripRightReleased_Implementation()
 
 void AEmpathPlayerCharacter::ReceiveGripLeftPressed_Implementation()
 {
-
+	if (bGripEnabled)
+	{
+		LeftHandActor->OnGripPressed();
+	}
 }
 
 void AEmpathPlayerCharacter::ReceiveGripLeftReleased_Implementation()
 {
-
+	if (bGripEnabled)
+	{
+		LeftHandActor->OnGripReleased();
+	}
 }
 
 void AEmpathPlayerCharacter::SetGripEnabled(const bool bNewEnabled)
@@ -1498,11 +1562,11 @@ void AEmpathPlayerCharacter::SetGripEnabled(const bool bNewEnabled)
 		// Release any grips if we can no longer grip
 		if (!bGripEnabled)
 		{
-			if (RightHandActor->GripState != EEmpathGripType::NoGrip)
+			if (RightHandActor->GetGripState() != EEmpathGripType::NoGrip)
 			{
 				RightHandActor->OnGripReleased();
 			}
-			if (LeftHandActor->GripState != EEmpathGripType::NoGrip)
+			if (LeftHandActor->GetGripState() != EEmpathGripType::NoGrip)
 			{
 				LeftHandActor->OnGripReleased();
 			}
@@ -1511,3 +1575,65 @@ void AEmpathPlayerCharacter::SetGripEnabled(const bool bNewEnabled)
 	return;
 }
 
+bool AEmpathPlayerCharacter::CanClimb_Implementation() const
+{
+	return (bClimbEnabled && !IsTeleporting() && !bDead && !bStunned);
+}
+
+
+void AEmpathPlayerCharacter::SetClimbingGrip(AEmpathHandActor* Hand, UPrimitiveComponent* GrippedComponent, FVector GripOffset)
+{
+	if (Hand && GrippedComponent && CanClimb() && VRMovementReference)
+	{
+		ClimbHand = Hand;
+		ClimbGrippedComponent = GrippedComponent;
+		ClimbGripOffset = GripOffset;
+
+		if (!bClimbing)
+		{
+			VRMovementReference->SetClimbingMode(true);
+			bClimbing = true;
+			OnClimbStart();
+		}
+	}
+}
+
+void AEmpathPlayerCharacter::ClearClimbingGrip()
+{
+	ClimbHand = nullptr;
+	ClimbGrippedComponent = nullptr;
+	ClimbGripOffset = FVector::ZeroVector;
+	bClimbing = false;
+	if (VRMovementReference)
+	{
+		VRMovementReference->SetClimbingMode(false);
+	}
+	OnClimbEnd();
+}
+
+void AEmpathPlayerCharacter::TickUpdateClimbing()
+{
+	if (bClimbing)
+	{
+		if (ClimbHand)
+		{
+			// Apply movement as the offset of where our hand was in relation to the gripped component, versus where it is now
+			if (ClimbGrippedComponent && VRMovementReference)
+			{
+				FVector Offset = ClimbHand->GetActorLocation() - ClimbGrippedComponent->GetComponentTransform().TransformPosition(ClimbGripOffset);
+				Offset *= -1.0f;
+				VRMovementReference->AddCustomReplicatedMovement(Offset);
+				
+			}
+			else
+			{
+				ClimbHand->OnGripReleased();
+				ClearClimbingGrip();
+			}
+		}
+		else
+		{
+			ClearClimbingGrip();
+		}
+	}
+}

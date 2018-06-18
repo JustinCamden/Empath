@@ -6,6 +6,7 @@
 #include "EmpathKinematicVelocityComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EmpathGripObjectInterface.h"
+#include "EmpathPlayerCharacter.h"
 
 FName AEmpathHandActor::BlockingCollisionName(TEXT("BlockingCollision"));
 FName AEmpathHandActor::KinematicVelocityComponentName(TEXT("KinematicVelocityComponent"));
@@ -73,13 +74,13 @@ void AEmpathHandActor::Tick(float DeltaTime)
 }
 
 void AEmpathHandActor::RegisterHand(AEmpathHandActor* InOtherHand, 
-	AEmpathPlayerCharacter* InOwningCharacter,
+	AEmpathPlayerCharacter* InOwningPlayerCharacter,
 	USceneComponent* InFollowedComponent,
 	EEmpathBinaryHand InOwningHand)
 {
 	// Cache inputted components
 	OtherHand = InOtherHand;
-	OwningCharacter = InOwningCharacter;
+	OwningPlayerCharacter = InOwningPlayerCharacter;
 	FollowedComponent = InFollowedComponent;
 	OwningHand = InOwningHand;
 
@@ -188,7 +189,7 @@ void AEmpathHandActor::GetBestGripCandidate(AActor*& GripActor, UPrimitiveCompon
 		// If this is a new actor, we need to check if it implements the interface, and if so, what the response is
 		if (CurrActor != GripActor)
 		{
-			if (CurrActor->GetOwner()->GetClass()->ImplementsInterface(UEmpathGripObjectInterface::StaticClass()))
+			if (CurrActor->GetClass()->ImplementsInterface(UEmpathGripObjectInterface::StaticClass()))
 			{
 				EEmpathGripType CurrGripResponse = IEmpathGripObjectInterface::Execute_GetGripResponse(CurrActor, this, CurrComponent);
 				if (CurrGripResponse != EEmpathGripType::NoGrip)
@@ -226,12 +227,87 @@ void AEmpathHandActor::GetBestGripCandidate(AActor*& GripActor, UPrimitiveCompon
 
 }
 
-void AEmpathHandActor::OnGripPressed_Implementation()
+void AEmpathHandActor::OnGripPressed()
 {
+	// Only attempt to grip if we are not already gripping an object
+	if (GripState == EEmpathGripType::NoGrip)
+	{
+		//Try and get a grip candidate
+		AActor* GripCandidate;
+		UPrimitiveComponent* GripComponent;
+		EEmpathGripType GripResponse;
+		GetBestGripCandidate(GripCandidate, GripComponent, GripResponse);
 
+		if (GripCandidate)
+		{
+			// Branch functionality depending on the type of grip
+			switch (GripResponse)
+			{
+			case EEmpathGripType::Climb:
+			{
+				// If we can climb then register the new climb point with the player character and update the grip state
+				if (OwningPlayerCharacter->CanClimb())
+				{
+					FVector GripOffset = GripComponent->GetComponentTransform().InverseTransformPosition(GetActorLocation());
+					OwningPlayerCharacter->SetClimbingGrip(this, GripComponent, GripOffset);
+					GripState = EEmpathGripType::Climb;
+				}
+				break;
+			}
+			default:
+			{
+				break;
+			}
+			}
+		}
+
+	}
+	ReceiveGripPressed();
 }
 
-void AEmpathHandActor::OnGripReleased_Implementation()
+void AEmpathHandActor::OnGripReleased()
 {
+	switch (GripState)
+	{
+	case EEmpathGripType::Climb:
+	{
+		// If this was our dominant climbing hand, but the other hand is still climbing, check and see if the
+		// other hand can find a valid grip object
+		if (OwningPlayerCharacter && OwningPlayerCharacter->ClimbHand == this && !OtherHand->CheckForClimbGrip())
+		{
+			// If not, then clear the player grip state
+			OwningPlayerCharacter->ClearClimbingGrip();
+		}
+		break;
+	}
+	default:
+	{
+		break;
+	}
+	}
+	// Update grip state
+	GripState = EEmpathGripType::NoGrip;
+	ReceiveGripReleased();
+}
 
+bool AEmpathHandActor::CheckForClimbGrip()
+{
+	// If we're climbing
+	if (GripState == EEmpathGripType::Climb)
+	{
+		// Try and get a grip candidate
+		AActor* GripCandidate;
+		UPrimitiveComponent* GripComponent;
+		EEmpathGripType GripResponse;
+		GetBestGripCandidate(GripCandidate, GripComponent, GripResponse);
+
+		// If we find a climbing grip, then update the climbing grip point on the owning player character
+		if (GripResponse == EEmpathGripType::Climb)
+		{
+			FVector GripOffset = GripComponent->GetComponentTransform().InverseTransformPosition(GetActorLocation());
+			OwningPlayerCharacter->SetClimbingGrip(this, GripComponent, GripOffset);
+			return true;
+		}
+	}
+	return false;
 }

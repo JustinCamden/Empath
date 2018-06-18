@@ -356,6 +356,13 @@ enum class EEmpathLocomotionMode : uint8
 };
 
 UENUM(BlueprintType)
+enum class EEmpathLocomotionControlMode : uint8
+{
+	DefaultAndAltMovement,
+	PressToWalkTapToDash
+};
+
+UENUM(BlueprintType)
 enum class EEmpathGripType : uint8
 {
 	NoGrip,
