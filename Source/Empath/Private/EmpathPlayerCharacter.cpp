@@ -14,7 +14,7 @@
 #include "Runtime/HeadMountedDisplay/Public/HeadMountedDisplayFunctionLibrary.h"
 
 // Stats for UE Profiler
-DECLARE_CYCLE_STAT(TEXT("Empath VR Char Take Damage"), STAT_EMPATH_TakeDamage, STATGROUP_EMPATH_VRCharacter);
+DECLARE_CYCLE_STAT(TEXT("Empath VR Char Take Damage"), STAT_EMPATH_PlayerTakeDamage, STATGROUP_EMPATH_VRCharacter);
 DECLARE_CYCLE_STAT(TEXT("Empath VR Char Teleport Trace"), STAT_EMPATH_TraceTeleport, STATGROUP_EMPATH_VRCharacter);
 
 // Log categories
@@ -336,7 +336,7 @@ void AEmpathPlayerCharacter::Die(FHitResult const& KillingHitInfo, FVector Killi
 float AEmpathPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	// Scope these functions for the UE4 profiler
-	SCOPE_CYCLE_COUNTER(STAT_EMPATH_TakeDamage);
+	SCOPE_CYCLE_COUNTER(STAT_EMPATH_PlayerTakeDamage);
 
 	// If we're invincible, dead, or this is no damage, do nothing
 	if (bInvincible || bDead || DamageAmount <= 0.0f)
